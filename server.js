@@ -22,13 +22,10 @@ console.log("USER:", process.env.MONGO_USER);
 console.log("DB:",   process.env.MONGO_DB);
 
 // ================== MONGO ==================
-
 const user = process.env.MONGO_USER;
-const pass = process.env.MONGO_PASS; // 👈 Quitamos el encodeURIComponent para evitar errores con cadenas simples
+const pass = encodeURIComponent(process.env.MONGO_PASS);
 const db   = process.env.MONGO_DB;
 
-// Si estás usando una variable completa en Render llamada MONGO_URI, puedes usarla directamente.
-// Si no, esta construcción usando tu host correcto funcionará:
 const URI = `mongodb+srv://${user}:${pass}@cluster0.8otlbi7.mongodb.net/${db}?retryWrites=true&w=majority`;
 
 mongoose.set('strictQuery', false);
@@ -37,10 +34,9 @@ mongoose.connect(URI, {
   maxPoolSize: 20,
   socketTimeoutMS: 45000,
 })
-.then(() => console.log("✅ Mongo conectado con éxito"))
-.catch(err => {
-  console.log("❌ Error Mongo:", err.message);
-});
+.then(() => console.log("✅ Mongo conectado"))
+.catch(err => console.log("❌ Error Mongo:", err));
+
 // ================== MODELOS ==================
 
 const Producto = mongoose.model('Producto', {
@@ -134,8 +130,20 @@ app.get('/health', (req, res) => {
 
 // ================== PRODUCTOS ==================
 app.get('/productos', async (req, res) => {
-  try { res.json(await Producto.find()); }
-  catch (err) { console.error(err); res.json([]); }
+  try {
+    const estado = mongoose.connection.readyState;
+    // 0=desconectado, 1=conectado, 2=conectando, 3=desconectando
+    if (estado !== 1) {
+      return res.status(503).json({ 
+        error: "Mongo no conectado", 
+        estado 
+      });
+    }
+    res.json(await Producto.find());
+  } catch (err) {
+    console.error("❌ Error /productos:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/productos', async (req, res) => {
