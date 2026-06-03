@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Caja </title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f5f6fa; display: flex; }
+
+    .sidebar { width: 220px; background: #1e272e; color: white; height: 100vh; padding: 20px; flex-shrink: 0; }
+    .sidebar h2 { margin-bottom: 16px; }
+    .sidebar a { display: block; color: white; padding: 10px; text-decoration: none; margin-top: 6px; border-radius: 8px; }
+    .sidebar a:hover { background: #485460; }
+
+    .main { flex: 1; display: flex; flex-direction: column; min-height: 100vh; overflow-y: auto; }
+    .header { background: #ff3f34; color: white; padding: 15px 20px; font-size: 20px; font-weight: bold; }
+
+    .contenido { padding: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+
+    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+    .card h3 { margin-bottom: 12px; font-size: 16px; }
+
+    input { padding: 10px; margin-top: 8px; width: 100%; border-radius: 6px; border: 1px solid #ccc; }
+
+    button { margin-top: 10px; width: 100%; padding: 10px; border: none; background: #ff3f34; color: white; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    button:hover { background: #e84118; }
+    button.btn-gray { background: #636e72; }
+    button.btn-gray:hover { background: #2d3436; }
+    button.btn-danger { background: #d63031; }
+    button.btn-danger:hover { background: #b71c1c; }
+    button.btn-sm {
+      width: auto;
+      padding: 5px 12px;
+      font-size: 12px;
+      margin-top: 0;
+      display: inline-block;
+    }
+
+    .saldo { font-size: 22px; color: green; font-weight: bold; }
+
+    .estado-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+    .estado-row:last-child { border-bottom: none; }
+
+    .badge { background: #fff3f3; color: #ff3f34; font-size: 11px; padding: 2px 7px; border-radius: 4px; cursor: pointer; margin-left: 6px; border: 1px solid #ffcdd2; }
+    .badge:hover { background: #ffcdd2; }
+
+    .trans-detalle { background: #f9f9f9; border-radius: 8px; padding: 10px; margin-top: 10px; font-size: 13px; display: none; }
+    .trans-item { padding: 6px 0; border-bottom: 1px dashed #ddd; }
+    .trans-item:last-child { border-bottom: none; }
+
+    .aviso { background: #fff8e1; border: 1px solid #ffc107; border-radius: 6px; padding: 10px; margin-bottom: 10px; font-size: 12px; color: #795548; }
+
+    /* ===== HISTORIAL ===== */
+    .historial-section {
+      padding: 0 20px 30px 20px;
+    }
+    .historial-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .historial-header h3 { font-size: 18px; color: #1e272e; }
+    .btn-borrar-todo {
+      background: #d63031;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 13px;
+    }
+    .btn-borrar-todo:hover { background: #b71c1c; }
+
+    .historial-vacio {
+      color: #999;
+      font-size: 14px;
+      text-align: center;
+      padding: 30px 0;
+    }
+
+    .hist-item {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .hist-item-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 18px;
+      background: #fafafa;
+      border-bottom: 1px solid #f0f0f0;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .hist-fecha { font-weight: bold; font-size: 14px; color: #1e272e; }
+    .hist-hora { font-size: 12px; color: #636e72; margin-top: 2px; }
+    .hist-saldo-badge {
+      background: #e8f5e9;
+      color: #2e7d32;
+      font-weight: bold;
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 14px;
+    }
+    .hist-item-body {
+      padding: 12px 18px;
+      display: none;
+      font-size: 13px;
+    }
+    .hist-item-body.abierto { display: block; }
+
+    .hist-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+      border-bottom: 1px dashed #f0f0f0;
+    }
+    .hist-row:last-child { border-bottom: none; }
+    .hist-row span:first-child { color: #636e72; }
+    .hist-row span:last-child { font-weight: 600; color: #2d3436; }
+
+    .hist-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-toggle-hist {
+      background: #dfe6e9;
+      color: #2d3436;
+      border: none;
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .btn-toggle-hist:hover { background: #b2bec3; }
+
+    .btn-del-dia {
+      background: #fff0f0;
+      color: #d63031;
+      border: 1px solid #ffcdd2;
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .btn-del-dia:hover { background: #ffcdd2; }
+
+    /* ===== MODAL ===== */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.activo { display: flex; }
+    .modal-box {
+      background: white;
+      border-radius: 14px;
+      padding: 28px 32px;
+      width: 320px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      text-align: center;
+    }
+    .modal-box h3 { margin-bottom: 12px; font-size: 17px; }
+    .modal-box p { font-size: 13px; color: #636e72; margin-bottom: 14px; }
+    .modal-box input { margin-bottom: 10px; }
+    .modal-btns { display: flex; gap: 10px; margin-top: 6px; }
+    .modal-btns button { margin-top: 0; flex: 1; }
+
+    @page { size: 80mm auto; margin: 0; }
+    @media print {
+      body { width: 80mm; font-family: monospace; font-size: 12px; }
+      .sidebar, button, .historial-section { display: none !important; }
+      .card { box-shadow: none; border: none; padding: 5px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h2>NEXUS</h2>
+  <a href="index.html">💰 Venta</a>
+  <a href="bodega.html">📦 Bodega</a>
+  <a href="deuda.html">💸 Deudas</a>
+  <a href="analisis.html">🔍 Historial</a>
+  <a href="caja.html">💵 Caja</a>
+  <a href="cliente.html">👤 Clientes</a>
+</div>
+
+<div class="main">
+  <div class="header">🏦 Control de Caja</div>
+
+  <div class="contenido">
+
+    <!-- ABRIR CAJA -->
+    <div class="card">
+      <h3>🟢 Abrir Caja</h3>
+      <input id="monto" type="number" placeholder="Monto inicial en efectivo">
+      <button onclick="abrir()">Abrir</button>
+    </div>
+
+    <!-- ESTADO -->
+    <div class="card">
+      <h3>📊 Estado de Caja</h3>
+      <div class="aviso">⚠️ Transferencias contadas <b>solo en caja</b>, no en ventas, para evitar duplicados.</div>
+      <div class="estado-row"><span>Apertura</span><span>$<span id="apertura">0</span></span></div>
+      <div class="estado-row"><span>Ventas (efectivo)</span><span>$<span id="ingresos">0</span></span></div>
+      <div class="estado-row">
+        <span>
+          Transferencias
+          <span class="badge" onclick="toggleDetalle()">ver detalle</span>
+        </span>
+        <span>$<span id="transferencias">0</span></span>
+      </div>
+      <div class="trans-detalle" id="detalleTransferencias">
+        <i style="color:#999">Cargando...</i>
+      </div>
+      <div class="estado-row"><span>Gastos</span><span>- $<span id="gastos">0</span></span></div>
+      <div class="estado-row">
+        <span class="saldo">Saldo Total</span>
+        <span class="saldo">$<span id="saldo">0</span></span>
+      </div>
+      <button onclick="cargar()">🔄 Actualizar</button>
+    </div>
+
+    <!-- GASTO -->
+    <div class="card">
+      <h3>💸 Registrar Gasto</h3>
+      <input id="gasto" type="number" placeholder="Monto del gasto">
+      <input id="motivo" type="text" placeholder="Motivo del gasto">
+      <button onclick="registrarGasto()">Registrar Gasto</button>
+    </div>
+
+    <!-- CERRAR -->
+    <div class="card">
+      <h3>🔴 Cerrar Caja</h3>
+      <p style="font-size:13px;color:#666;margin-bottom:8px;">El ticket imprimirá el detalle completo de transferencias (banco, comprobante, monto).</p>
+      <button onclick="cerrar()">Cerrar Caja</button>
+    </div>
+
+  </div>
+
+  <!-- ===== HISTORIAL ===== -->
+  <div class="historial-section">
+    <div class="historial-header">
+      <h3>📋 Historial de Cierres</h3>
+      <button class="btn-borrar-todo" onclick="pedirBorrarTodo()">🗑️ Borrar Todo el Historial</button>
+    </div>
+    <div id="historialContainer">
+      <div class="historial-vacio">Cargando historial...</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== MODAL CONTRASEÑA ===== -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <h3 id="modalTitulo">🔒 Confirmar Acción</h3>
+    <p id="modalDesc">Ingresa la contraseña para continuar.</p>
+    <input type="password" id="modalPass" placeholder="Contraseña" autocomplete="off">
+    <div class="modal-btns">
+      <button onclick="cancelarModal()" class="btn-gray" style="background:#636e72;">Cancelar</button>
+      <button onclick="confirmarModal()" class="btn-danger" style="background:#d63031;">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+
+const API = "https://bazar-bellita.onrender.com";<!DOCTYPE html>
+<html>
+<head>
+  <title>Bodega </title>
+  <style>
+    body { margin: 0; font-family: 'Segoe UI'; display: flex; background: #f5f6fa; }
+    .sidebar { width: 220px; background: #1e272e; color: white; height: 100vh; padding: 20px; }
+    .sidebar a { display: block; color: white; padding: 10px; text-decoration: none; margin-top: 10px; border-radius: 6px; }
+    .sidebar a:hover { background: #485460; }
+    .main { flex: 1; }
+    .header { background: #ff3f34; color: white; padding: 15px; font-size: 20px; }
+    .contenido { padding: 20px; }
+    .card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0px 5px 15px rgba(0,0,0,0.1); }
+    input { padding: 10px; margin: 5px; border-radius: 8px; border: 1px solid #ccc; }
+    button { padding: 10px; border: none; background: #ff3f34; color: white; border-radius: 8px; cursor: pointer; }
+    button:hover { background: #e84118; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px; border-bottom: 1px solid #ddd; text-align: center; }
+
+    /* ===== MODAL STOCK ===== */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 999;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-overlay.activo { display: flex; }
+    .modal {
+      background: white;
+      border-radius: 16px;
+      padding: 30px;
+      width: 360px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    }
+    .modal h3 { margin-top: 0; color: #1e272e; }
+    .modal label { display: block; margin: 10px 0 4px; font-weight: 600; color: #444; font-size: 14px; }
+    .modal input { width: 100%; box-sizing: border-box; margin: 0 0 8px 0; }
+
+    .tipo-stock { display: flex; gap: 10px; margin-bottom: 14px; }
+    .tipo-btn {
+      flex: 1; padding: 12px;
+      border: 2px solid #ddd;
+      background: #f5f6fa;
+      color: #555;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .tipo-btn.add.activo { border-color: #27ae60; background: #eafaf1; color: #27ae60; }
+    .tipo-btn.sub.activo { border-color: #e74c3c; background: #fdf2f2; color: #e74c3c; }
+
+    .stock-actual {
+      background: #f0f4ff;
+      border-left: 4px solid #3c6fe4;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 14px;
+      color: #333;
+    }
+    .stock-preview {
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 14px;
+      text-align: center;
+    }
+    .stock-preview span { font-size: 20px; font-weight: 700; }
+    .stock-preview span.positivo { color: #27ae60; }
+    .stock-preview span.negativo { color: #e74c3c; }
+    .stock-preview span.cero { color: #e67e22; }
+
+    .modal-btns { display: flex; gap: 10px; margin-top: 16px; }
+    .btn-cancelar { flex: 1; background: #ccc; color: #333; }
+    .btn-cancelar:hover { background: #aaa; }
+    .btn-confirmar { flex: 2; background: #ff3f34; }
+
+    .badge-bajo { background: #fff3cd; color: #856404; padding: 2px 7px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+    .badge-cero { background: #fde8e8; color: #a00; padding: 2px 7px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h2>NEXUS</h2>
+  <a href="index.html">💰 Venta</a>
+  <a href="bodega.html">📦 Bodega</a>
+  <a href="deuda.html">💸 Deudas</a>
+  <a href="analisis.html">🔍 Historial</a>
+  <a href="caja.html">💵 Caja</a>
+  <a href="cliente.html">👤 Clientes</a>
+</div>
+
+<div class="main">
+  <div class="header">📦 Bodega - Inventario</div>
+  <div class="contenido">
+
+    <div class="card">
+      <h3>➕ Agregar Producto</h3>
+      <input id="codigo" placeholder="Código de barras">
+      <input id="nombre" placeholder="Nombre producto">
+      <input id="precioCompra" type="number" placeholder="Precio compra">
+      <input id="precioVenta" type="number" placeholder="Precio venta">
+      <input id="stock" type="number" placeholder="Stock">
+      <button onclick="guardar()">Guardar</button>
+    </div>
+
+    <div class="card">
+      <h3>📋 Inventario</h3>
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+        <span style="font-size:18px;">🔍</span>
+        <input id="buscar" placeholder="Buscar producto..." onkeyup="filtrar()" style="flex:1; padding:10px; border-radius:8px; border:1px solid #ccc;">
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Nombre</th>
+            <th>Compra</th>
+            <th>Venta</th>
+            <th>Stock</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tabla"></tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== MODAL MODIFICAR STOCK ===== -->
+<div class="modal-overlay" id="modalStock">
+  <div class="modal">
+    <h3>📦 Modificar Stock</h3>
+
+    <div class="stock-actual" id="modal-info-producto">
+      Producto: <b id="modal-nombre-prod">-</b>
+    </div>
+
+    <label>Tipo de ajuste</label>
+    <div class="tipo-stock">
+      <button class="tipo-btn add activo" id="btn-agregar" onclick="seleccionarTipoStock('agregar')">➕ Agregar</button>
+      <button class="tipo-btn sub" id="btn-restar" onclick="seleccionarTipoStock('restar')">➖ Restar</button>
+    </div>
+
+    <label>Cantidad</label>
+    <input type="number" id="modal-cantidad" placeholder="Ej: 10" min="1" oninput="actualizarPreview()">
+
+    <div class="stock-preview" id="stock-preview" style="display:none;">
+      Stock actual: <b id="preview-actual">0</b> → Nuevo stock: <span id="preview-nuevo">0</span>
+    </div>
+
+    <div class="modal-btns">
+      <button class="btn-cancelar" onclick="cerrarModalStock()">Cancelar</button>
+      <button class="btn-confirmar" onclick="confirmarStock()">✅ Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+
+const PASSWORD = "bellita123";
+
+const API = location.hostname === "localhost"
+  ? "http://localhost:3000"
+  : "https://agronaranjito.onrender.com";;
+
+let productos = [];
+let stockIdActual = null;
+let stockActualValor = 0;
+let tipoStockActual = "agregar";
+
+// ================= FILTRAR =================
+function filtrar() {
+  let t = document.getElementById("buscar").value.toLowerCase().trim();
+  const filtrados = productos.filter(p =>
+    (p.nombre || "").toLowerCase().includes(t) ||
+    (p.codigo || "").toLowerCase().includes(t)
+  );
+  renderTabla(filtrados);
+}
+
+// ================= CARGAR =================
+async function cargar() {
+  try {
+    const res = await fetch(API + '/productos');
+    if (!res.ok) throw new Error();
+    productos = await res.json();
+    renderTabla(productos);
+  } catch (e) {
+    alert("❌ No conecta con el servidor");
+  }
+}
+
+// ================= RENDER TABLA =================
+function renderTabla(lista) {
+  const tabla = document.getElementById('tabla');
+  if (lista.length === 0) {
+    tabla.innerHTML = `<tr><td colspan="6">No hay productos</td></tr>`;
+    return;
+  }
+  let html = "";
+  lista.forEach(p => {
+    let stockBadge = "";
+    if (p.stock === 0) stockBadge = `<span class="badge-cero">Sin stock</span>`;
+    else if (p.stock <= 3) stockBadge = `<span class="badge-bajo">Stock bajo</span>`;
+
+    html += `
+      <tr>
+        <td>${p.codigo || '-'}</td>
+        <td>${p.nombre}</td>
+        <td>$${p.precioCompra}</td>
+        <td>$${p.precioVenta}</td>
+        <td>${p.stock} ${stockBadge}</td>
+        <td>
+          <button onclick="editar('${p._id}')">✏️ Editar</button>
+          <button onclick="abrirModalStock('${p._id}')">📦 Stock</button>
+          <button onclick="eliminar('${p._id}')">🗑️</button>
+        </td>
+      </tr>
+    `;
+  });
+  tabla.innerHTML = html;
+}
+
+// ================= GUARDAR =================
+async function guardar() {
+  let nombreVal = document.getElementById("nombre").value;
+  let precioVentaVal = document.getElementById("precioVenta").value;
+  let stockVal = document.getElementById("stock").value;
+  if (!nombreVal || !precioVentaVal || !stockVal) return alert("Completa los datos");
+
+  await fetch(API + '/productos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      codigo: document.getElementById("codigo").value,
+      nombre: nombreVal,
+      precioCompra: Number(document.getElementById("precioCompra").value),
+      precioVenta: Number(precioVentaVal),
+      stock: Number(stockVal)
+    })
+  });
+  limpiar();
+  cargar();
+}
+
+// ================= EDITAR =================
+async function editar(id) {
+  let p = productos.find(x => x._id === id);
+  let codigoNuevo = prompt("Código:", p.codigo);
+  let nombreNuevo = prompt("Nombre:", p.nombre);
+  let compraNuevo = parseFloat(prompt("Precio compra:", p.precioCompra));
+  let ventaNuevo = parseFloat(prompt("Precio venta:", p.precioVenta));
+  if (!nombreNuevo) return;
+  await fetch(API + `/productos/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ codigo: codigoNuevo, nombre: nombreNuevo, precioCompra: compraNuevo, precioVenta: ventaNuevo })
+  });
+  cargar();
+}
+
+// ================= MODAL STOCK =================
+function abrirModalStock(id) {
+  let p = productos.find(x => x._id === id);
+  if (!p) return;
+  stockIdActual = id;
+  stockActualValor = p.stock;
+  tipoStockActual = "agregar";
+
+  document.getElementById("modal-nombre-prod").textContent = `${p.nombre} (stock actual: ${p.stock})`;
+  document.getElementById("modal-cantidad").value = "";
+  document.getElementById("stock-preview").style.display = "none";
+  document.getElementById("btn-agregar").classList.add("activo");
+  document.getElementById("btn-restar").classList.remove("activo");
+  document.getElementById("modalStock").classList.add("activo");
+}
+
+function cerrarModalStock() {
+  document.getElementById("modalStock").classList.remove("activo");
+  stockIdActual = null;
+}
+
+function seleccionarTipoStock(tipo) {
+  tipoStockActual = tipo;
+  document.getElementById("btn-agregar").classList.toggle("activo", tipo === "agregar");
+  document.getElementById("btn-restar").classList.toggle("activo", tipo === "restar");
+  actualizarPreview();
+}
+
+function actualizarPreview() {
+  let cantidad = parseInt(document.getElementById("modal-cantidad").value) || 0;
+  let preview = document.getElementById("stock-preview");
+  let spanNuevo = document.getElementById("preview-nuevo");
+  document.getElementById("preview-actual").textContent = stockActualValor;
+
+  if (cantidad <= 0) { preview.style.display = "none"; return; }
+
+  let nuevoStock = tipoStockActual === "agregar"
+    ? stockActualValor + cantidad
+    : stockActualValor - cantidad;
+
+  spanNuevo.textContent = nuevoStock;
+  spanNuevo.className = nuevoStock > 0 ? "positivo" : nuevoStock === 0 ? "cero" : "negativo";
+  preview.style.display = "block";
+}
+
+async function confirmarStock() {
+  let cantidad = parseInt(document.getElementById("modal-cantidad").value);
+  if (!cantidad || cantidad <= 0) return alert("Ingresa una cantidad válida");
+
+  if (tipoStockActual === "restar") {
+    let nuevoStock = stockActualValor - cantidad;
+    if (nuevoStock < 0) {
+      if (!confirm(`El stock quedaría en ${nuevoStock} (negativo). ¿Confirmar de todas formas?`)) return;
+    }
+    // Restar: enviamos cantidad negativa o usamos el endpoint de agregar con negativo
+    // Si tu backend solo suma, calculamos el nuevo total y lo enviamos directo
+    await fetch(API + `/productos/agregar/${stockIdActual}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cantidad: -cantidad })
+    });
+  } else {
+    await fetch(API + `/productos/agregar/${stockIdActual}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cantidad })
+    });
+  }
+
+  cerrarModalStock();
+  cargar();
+}
+
+// ================= ELIMINAR =================
+async function eliminar(id) {
+  let pass = prompt("🔐 Contraseña");
+  if (pass !== PASSWORD) { alert("❌ Incorrecta"); return; }
+  await fetch(API + `/productos/${id}`, { method: 'DELETE' });
+  cargar();
+}
+
+// ================= LIMPIAR =================
+function limpiar() {
+  document.getElementById("codigo").value = "";
+  document.getElementById("nombre").value = "";
+  document.getElementById("precioCompra").value = "";
+  document.getElementById("precioVenta").value = "";
+  document.getElementById("stock").value = "";
+}
+
+cargar();
+</script>
+</body>
+</html>
+const HISTORIAL_KEY = "caja_historial_bellita";
+const PASSWORD = "bellita123";
+
+let transferenciasList = [];
+let modalAccion = null;
+let modalParam  = null;
+
+// ===================== HELPERS HISTORIAL =====================
+function getHistorial() {
+  try {
+    const data = localStorage.getItem(HISTORIAL_KEY);
+    console.log('📖 Historial leído:', data);
+    return data ? JSON.parse(data) : [];
+  } catch(e) { 
+    console.error('Error al leer historial:', e);
+    return []; 
+  }
+}
+
+function setHistorial(arr) {
+  try {
+    localStorage.setItem(HISTORIAL_KEY, JSON.stringify(arr));
+    console.log('💾 Historial guardado:', arr);
+  } catch(e) {
+    console.error('Error al guardar historial:', e);
+  }
+}
+
+function guardarCierreEnHistorial(data) {
+  try {
+    let historial = getHistorial();
+    const ahora = new Date();
+    
+    const nuevoRegistro = {
+      id: Date.now(), // ID único para cada cierre
+      fecha: ahora.toLocaleDateString('es-EC', { weekday:'long', year:'numeric', month:'long', day:'numeric' }),
+      fechaISO: ahora.toISOString().split('T')[0],
+      hora: ahora.toLocaleTimeString('es-EC', { hour:'2-digit', minute:'2-digit' }),
+      apertura:      data.apertura      ?? 0,
+      ingresos:      data.ingresos      ?? 0,
+      transferencias: data.transferencias ?? 0,
+      gastos:        data.gastos        ?? 0,
+      saldo:         data.saldo         ?? 0,
+      esperado:      data.esperado      ?? 0,
+      real:          data.real          ?? 0,
+      diferencia:    data.diferencia    ?? 0,
+      dejar:         data.dejar         ?? 0,
+    };
+    
+    historial.unshift(nuevoRegistro);
+    setHistorial(historial);
+    console.log('✅ Cierre guardado en historial');
+    
+  } catch(e) {
+    console.error('Error al guardar cierre:', e);
+  }
+}
+
+// ===================== RENDER HISTORIAL =====================
+function renderHistorial() {
+  const historial = getHistorial();
+  const cont = document.getElementById('historialContainer');
+
+  if (!historial || historial.length === 0) {
+    cont.innerHTML = '<div class="historial-vacio">📭 No hay cierres registrados aún.</div>';
+    console.log('✅ Historial vacío renderizado');
+    return;
+  }
+
+  console.log('🖼️ Renderizando', historial.length, 'cierres');
+  
+  cont.innerHTML = historial.map((item, i) => `
+    <div class="hist-item" id="hist-item-${i}">
+      <div class="hist-item-header">
+        <div>
+          <div class="hist-fecha">📅 ${capitalizar(item.fecha)}</div>
+          <div class="hist-hora">🕐 Cerrada a las ${item.hora}</div>
+        </div>
+        <div class="hist-actions">
+          <div class="hist-saldo-badge">$${item.saldo}</div>
+          <button class="btn-toggle-hist" onclick="toggleHist(${i})">Ver ▼</button>
+          <button class="btn-del-dia" onclick="pedirBorrarDia(${i})">🗑️</button>
+        </div>
+      </div>
+      <div class="hist-item-body" id="hist-body-${i}">
+        <div class="hist-row"><span>Apertura</span><span>$${item.apertura}</span></div>
+        <div class="hist-row"><span>Ventas (efectivo)</span><span>$${item.ingresos}</span></div>
+        <div class="hist-row"><span>Transferencias</span><span>$${item.transferencias}</span></div>
+        <div class="hist-row"><span>Gastos</span><span>- $${item.gastos}</span></div>
+        <div class="hist-row"><span>Saldo total</span><span style="color:green;font-weight:bold;">$${item.saldo}</span></div>
+        <div class="hist-row" style="margin-top:6px;"><span>Esperado en caja</span><span>$${item.esperado}</span></div>
+        <div class="hist-row"><span>Real contado</span><span>$${item.real}</span></div>
+        <div class="hist-row"><span>Diferencia</span><span style="color:${item.diferencia < 0 ? 'red' : '#2e7d32'}">$${item.diferencia}</span></div>
+        <div class="hist-row"><span>Dejado en caja</span><span>$${item.dejar}</span></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function capitalizar(str) {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function toggleHist(i) {
+  const body = document.getElementById(`hist-body-${i}`);
+  const btn  = document.querySelector(`#hist-item-${i} .btn-toggle-hist`);
+  const abierto = body.classList.toggle('abierto');
+  btn.textContent = abierto ? 'Cerrar ▲' : 'Ver ▼';
+}
+
+// ===================== MODAL =====================
+function abrirModal(titulo, desc, accion, param) {
+  document.getElementById('modalTitulo').textContent = titulo;
+  document.getElementById('modalDesc').textContent   = desc;
+  document.getElementById('modalPass').value         = '';
+  modalAccion = accion;
+  modalParam  = param;
+  document.getElementById('modalOverlay').classList.add('activo');
+  setTimeout(() => document.getElementById('modalPass').focus(), 100);
+}
+
+function cancelarModal() {
+  document.getElementById('modalOverlay').classList.remove('activo');
+  document.getElementById('modalPass').value = '';
+  modalAccion = null;
+  modalParam  = null;
+}
+
+function confirmarModal() {
+  const pass = document.getElementById('modalPass').value;
+  if (pass !== PASSWORD) {
+    alert('❌ Contraseña incorrecta');
+    document.getElementById('modalPass').value = '';
+    document.getElementById('modalPass').focus();
+    return;
+  }
+  
+  const accion = modalAccion;
+  const param = modalParam;
+  cancelarModal();
+  
+  if (accion) {
+    accion(param);
+  }
+}
+
+// Cerrar modal con Escape o Enter
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') cancelarModal();
+  if (e.key === 'Enter' && document.getElementById('modalOverlay').classList.contains('activo')) {
+    confirmarModal();
+  }
+});
+
+// ===================== BORRAR HISTORIAL =====================
+function pedirBorrarDia(i) {
+  const historial = getHistorial();
+  const item = historial[i];
+  if (!item) return;
+  
+  abrirModal(
+    '🗑️ Borrar este cierre',
+    `¿Eliminar el cierre del ${capitalizar(item.fecha)} a las ${item.hora}? Ingresa la contraseña.`,
+    borrarDia,
+    i
+  );
+}
+
+function borrarDia(i) {
+  try {
+    let historial = getHistorial();
+    if (historial[i]) {
+      historial.splice(i, 1);
+      setHistorial(historial);
+      renderHistorial();
+      console.log('✅ Cierre eliminado');
+    }
+  } catch(e) {
+    console.error('Error al borrar cierre:', e);
+  }
+}
+
+function pedirBorrarTodo() {
+  const historial = getHistorial();
+  
+  if (!historial || historial.length === 0) {
+    alert('El historial ya está vacío.');
+    return;
+  }
+  
+  console.log('🔴 Pidiendo confirmación para borrar', historial.length, 'registros');
+  
+  abrirModal(
+    '🗑️ Borrar TODO el historial',
+    `Vas a eliminar ${historial.length} cierre(s). ¿Estás segura? Ingresa la contraseña.`,
+    borrarTodo,
+    null
+  );
+}
+
+function borrarTodo() {
+  try {
+    setHistorial([]);
+    renderHistorial();
+    alert('✅ Historial eliminado correctamente');
+    console.log('✅ Todo el historial fue eliminado');
+  } catch(e) {
+    console.error('Error al borrar todo:', e);
+    alert('❌ Error al borrar el historial');
+  }
+}
+
+// ===================== TOGGLE DETALLE TRANSFERENCIAS =====================
+function toggleDetalle() {
+  let d = document.getElementById('detalleTransferencias');
+  d.style.display = d.style.display === 'block' ? 'none' : 'block';
+}
+
+// ===================== CONSTRUIR LISTA TRANSFERENCIAS =====================
+function construirListaTransferencias(data) {
+  let lista = [
+    ...(data?.transferenciasList || []),
+    ...(data?.transferenciasLista || [])
+  ];
+  let idsIncluidos = new Set(lista.map(t => t._id).filter(Boolean));
+  let movimientos = data?.movimientos || [];
+  movimientos.forEach(m => {
+    if (m.banco && !idsIncluidos.has(m._id)) {
+      lista.push(m);
+      idsIncluidos.add(m._id);
+    }
+  });
+  return lista;
+}
+
+// ===================== RENDER DETALLE TRANSFERENCIAS =====================
+function renderDetalle(lista) {
+  let d = document.getElementById('detalleTransferencias');
+  if (!lista || lista.length === 0) {
+    d.innerHTML = '<i style="color:#999">Sin transferencias registradas</i>';
+    return;
+  }
+  d.innerHTML = lista.map(t => `
+    <div class="trans-item">
+      🏦 <b>${t.banco || 'Sin banco'}</b> &nbsp;|&nbsp;
+      🔢 Comp: <b>${t.comprobante || 'S/N'}</b> &nbsp;|&nbsp;
+      💵 $<b>${t.monto || 0}</b>
+      ${t.motivo ? `<br><span style="color:#888;font-size:11px;">📝 ${t.motivo}</span>` : ''}
+    </div>
+  `).join('');
+}
+
+// ===================== CARGAR =====================
+async function cargar() {
+  try {
+    let res = await fetch(API + '/caja');
+    let data = await res.json();
+
+    document.getElementById('apertura').innerText       = data?.apertura       ?? 0;
+    document.getElementById('ingresos').innerText       = data?.ingresos       ?? 0;
+    document.getElementById('gastos').innerText         = data?.gastos         ?? 0;
+    document.getElementById('saldo').innerText          = data?.saldo          ?? 0;
+    document.getElementById('transferencias').innerText = data?.transferencias  ?? 0;
+
+    transferenciasList = construirListaTransferencias(data);
+    renderDetalle(transferenciasList);
+
+  } catch (e) {
+    console.error('Error cargando caja:', e);
+    ['apertura','ingresos','gastos','saldo','transferencias'].forEach(id =>
+      document.getElementById(id).innerText = '0'
+    );
+    document.getElementById('detalleTransferencias').innerHTML =
+      '<i style="color:red">❌ Error de conexión</i>';
+  }
+}
+
+// ===================== ABRIR =====================
+async function abrir() {
+  let monto = Number(document.getElementById('monto').value);
+  if (!monto || monto <= 0) return alert("Monto inválido");
+
+  try {
+    let res = await fetch(API + '/caja/abrir', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ monto })
+    });
+    let data = await res.json();
+    alert(data.error || "Caja abierta ✔");
+  } catch {
+    alert("❌ Error conexión");
+  }
+
+  document.getElementById('monto').value = "";
+  cargar();
+}
+
+// ===================== GASTO =====================
+async function registrarGasto() {
+  let monto  = Number(document.getElementById('gasto').value);
+  let motivo = document.getElementById('motivo').value || "Sin motivo";
+
+  if (!monto || monto <= 0) return alert("Monto inválido");
+
+  try {
+    let res = await fetch(API + '/caja/gasto', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ monto, motivo })
+    });
+    let data = await res.json();
+    alert(data.error || "Gasto registrado ✔");
+  } catch {
+    alert("❌ Error conexión");
+  }
+
+  document.getElementById('gasto').value  = "";
+  document.getElementById('motivo').value = "";
+  cargar();
+}
+
+// ===================== IMPRIMIR CIERRE =====================
+function imprimirFactura(data) {
+  let lista = construirListaTransferencias(data);
+  if (!lista.length) lista = transferenciasList || [];
+
+  let transHTML = lista.length
+    ? lista.map(t => `
+        <tr>
+          <td>${t.banco       || 'S/B'}</td>
+          <td>${t.comprobante || 'S/N'}</td>
+          <td>$${t.monto      || 0}</td>
+          <td style="font-size:10px;color:#555">${t.motivo || ''}</td>
+        </tr>
+      `).join('')
+    : '<tr><td colspan="4" style="color:#999">Sin transferencias</td></tr>';
+
+  let gastosHTML = (data.gastosLista && data.gastosLista.length)
+    ? data.gastosLista.map(g => `- $${g.monto} | ${g.motivo}<br>`).join('')
+    : 'Sin gastos registrados';
+
+  let ventana = window.open("", "_blank", "width=400,height=700");
+  ventana.document.write(`
+    <html>
+    <head>
+      <title>Cierre Caja</title>
+      <style>
+        body { font-family: monospace; width: 80mm; padding: 10px; font-size: 12px; }
+        h2 { text-align: center; margin-bottom: 8px; }
+        .linea { border-top: 1px dashed #000; margin: 8px 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 4px; }
+        th { text-align: left; border-bottom: 1px solid #000; padding: 2px 0; }
+        td { padding: 2px 2px; }
+        .total { font-weight: bold; font-size: 13px; }
+      </style>
+    </head>
+    <body>
+      <h2>📄 CIERRE DE CAJA</h2>
+      <div class="linea"></div>
+      <p>Apertura:           $${data.apertura}</p>
+      <p>Ventas (efectivo):  $${data.ingresos}</p>
+      <p>Gastos:           - $${data.gastos}</p>
+      <div class="linea"></div>
+      <b>Detalle Transferencias:</b>
+      <table>
+        <tr>
+          <th>Banco</th>
+          <th>Comprobante</th>
+          <th>Monto</th>
+          <th>Motivo</th>
+        </tr>
+        ${transHTML}
+      </table>
+      <p><b>Total Transferencias: $${data.transferencias}</b></p>
+      <div class="linea"></div>
+      <b>Detalle Gastos:</b><br>
+      ${gastosHTML}
+      <div class="linea"></div>
+      <p>Esperado:    $${data.esperado}</p>
+      <p>Real:        $${data.real}</p>
+      <p>Diferencia:  $${data.diferencia}</p>
+      <div class="linea"></div>
+      <p class="total">Dejado en caja: $${data.dejar ?? 0}</p>
+      <div class="linea"></div>
+      <p>${new Date().toLocaleString()}</p>
+      <script>window.onload = () => window.print();<\/script>
+    </body>
+    </html>
+  `);
+  ventana.document.close();
+}
+
+// ===================== CERRAR =====================
+async function cerrar() {
+  let montoReal = prompt("¿Cuánto dinero hay en caja? (solo efectivo)");
+  let dejar     = prompt("¿Cuánto quieres dejar en caja?");
+
+  if (!montoReal || isNaN(montoReal)) return alert("Monto inválido");
+  if (!dejar || isNaN(dejar)) dejar = 0;
+
+  try {
+    let res = await fetch(API + '/caja/cerrar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        montoReal: Number(montoReal),
+        dejar:     Number(dejar)
+      })
+    });
+    let data = await res.json();
+
+    if (!data.error) {
+      guardarCierreEnHistorial(data);
+      renderHistorial();
+      imprimirFactura(data);
+      alert("Caja cerrada ✔");
+    } else {
+      alert(data.error);
+    }
+  } catch (e) {
+    console.error('Error cerrando caja:', e);
+    alert("❌ Error conexión");
+  }
+
+  cargar();
+}
+
+// ===================== INIT =====================
+console.log('🚀 Inicializando página de caja...');
+cargar();
+renderHistorial();
+
+</script>
+</body>
+</html>
