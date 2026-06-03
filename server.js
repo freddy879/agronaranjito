@@ -22,10 +22,13 @@ console.log("USER:", process.env.MONGO_USER);
 console.log("DB:",   process.env.MONGO_DB);
 
 // ================== MONGO ==================
+
 const user = process.env.MONGO_USER;
-const pass = encodeURIComponent(process.env.MONGO_PASS);
+const pass = process.env.MONGO_PASS; // 👈 Quitamos el encodeURIComponent para evitar errores con cadenas simples
 const db   = process.env.MONGO_DB;
 
+// Si estás usando una variable completa en Render llamada MONGO_URI, puedes usarla directamente.
+// Si no, esta construcción usando tu host correcto funcionará:
 const URI = `mongodb+srv://${user}:${pass}@cluster0.8otlbi7.mongodb.net/${db}?retryWrites=true&w=majority`;
 
 mongoose.set('strictQuery', false);
@@ -34,9 +37,10 @@ mongoose.connect(URI, {
   maxPoolSize: 20,
   socketTimeoutMS: 45000,
 })
-.then(() => console.log("✅ Mongo conectado"))
-.catch(err => console.log("❌ Error Mongo:", err));
-
+.then(() => console.log("✅ Mongo conectado con éxito"))
+.catch(err => {
+  console.log("❌ Error Mongo:", err.message);
+});
 // ================== MODELOS ==================
 
 const Producto = mongoose.model('Producto', {
