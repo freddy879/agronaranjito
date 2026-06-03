@@ -6,16 +6,14 @@ const cors     = require('cors');
 
 const app = express();
 
-// Configuración avanzada de CORS para aceptar archivos locales 'file://'
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || origin === 'null') {
-      return callback(null, true);
-    }
-    return callback(null, true);
-  },
-  credentials: true
-}));
+// Configuración CORS — acepta cualquier origen, incluyendo file:// (origin: null)
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
 app.use(express.json());
 app.use(express.static('public'));
 
@@ -248,6 +246,7 @@ app.delete('/clientes/:id', async (req, res) => {
 app.post('/ventas', async (req, res) => {
   try {
     await new Venta(req.body).save();
+
     const caja = await Caja.findOne({ activa: true });
 
     if (req.body.tipo === "efectivo" && caja) {
@@ -306,17 +305,20 @@ app.delete('/ventas/producto/:ventaId/:indice', async (req, res) => {
 
     venta.productos.splice(indice, 1);
 
+    // Si ya no quedan productos, eliminar la venta completa
     if (venta.productos.length === 0) {
       await Venta.findByIdAndDelete(req.params.ventaId);
       return res.json({ msg: "Venta eliminada (quedó sin productos)" });
     }
 
+    // Recalcular total sumando precio * cantidad de cada producto restante
     venta.total = venta.productos.reduce((sum, p) => {
       return sum + (Number(p.precio || 0) * Number(p.cantidad || 1));
     }, 0);
 
     await venta.save();
     res.json({ msg: "Producto eliminado correctamente" });
+
   } catch (err) {
     console.error("Error DELETE /ventas/producto:", err);
     res.status(500).json({ error: "Error al borrar el producto" });
@@ -404,6 +406,7 @@ app.post('/deudas/pagar', async (req, res) => {
           motivo: `Abono deuda efectivo — ${deuda.cliente}`
         });
       }
+
       await caja.save();
     }
 
@@ -437,6 +440,11 @@ app.put('/deudas/:id', async (req, res) => {
     if (req.body.productos !== undefined) deuda.productos = req.body.productos;
     if (req.body.pagado    !== undefined) deuda.pagado    = Number(req.body.pagado);
     if (req.body.pagos     !== undefined) deuda.pagos     = req.body.pagos;
+
+    console.log("🔄 Actualizando deuda:", deuda._id);
+    console.log("   Productos:", deuda.productos);
+    console.log("   Total:", deuda.total);
+    console.log("   Pagado:", deuda.pagado);
 
     await deuda.save();
     res.json({ ok: true, deuda });
@@ -734,18 +742,4 @@ app.get('/analisis', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("🚀 http://localhost:" + PORT);
-
-  // Sistema Auto-Ping para mantener despierto Render
-  // Se ejecutará cada 13 minutos (780000 ms)
-  setInterval(async () => {
-    try {
-      // Usamos localhost ya que el servidor se llama a sí mismo de forma local interna
-      const response = await fetch(`http://localhost:${PORT}/health`);
-      if (response.ok) {
-        console.log("🔄 Auto-ping exitoso: Manteniendo el servidor despierto.");
-      }
-    } catch (error) {
-      console.error("❌ Error en el Auto-ping:", error.message);
-    }
-  }, 780000); 
 });
