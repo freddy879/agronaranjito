@@ -18,30 +18,25 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // ================== DEBUG ==================
-console.log("USER:", process.env.MONGO_USER || 'agro_2026');
-console.log("DB:",   process.env.MONGO_DB || 'agro-123');
+console.log("USER:", process.env.MONGO_USER);
+console.log("DB:",   process.env.MONGO_DB);
 
 // ================== MONGO ==================
-// Si Render no lee las variables, usará estos valores reales fijos por defecto
-const user = process.env.MONGO_USER || 'agro_2026';
-const pass = encodeURIComponent(process.env.MONGO_PASS || 'agro'); // <-- Aquí cambiamos a la contraseña real
-const db   = process.env.MONGO_DB || 'agro-123'; 
+const user = process.env.MONGO_USER;
+const pass = encodeURIComponent(process.env.MONGO_PASS);
+const db   = process.env.MONGO_DB;
 
 const URI = `mongodb+srv://${user}:${pass}@cluster0.8otlbi7.mongodb.net/${db}?retryWrites=true&w=majority`;
 
 mongoose.set('strictQuery', false);
-
-// Desactiva el buffer para evitar que las rutas se queden congeladas dando error 500
-mongoose.set('bufferCommands', false); 
-
 mongoose.connect(URI, {
-  serverSelectionTimeoutMS: 5000, // Si hay un problema, avisa en 5 segundos en vez de colgarse
+  serverSelectionTimeoutMS: 5000,
   maxPoolSize: 20,
+  socketTimeoutMS: 45000,
 })
-.then(() => console.log("✅ Mongo conectado exitosamente"))
-.catch(err => {
-  console.error("❌ Error de conexión en Mongo:", err.message);
-});
+.then(() => console.log("✅ Mongo conectado"))
+.catch(err => console.log("❌ Error Mongo:", err));
+
 // ================== MODELOS ==================
 
 const Producto = mongoose.model('Producto', {
