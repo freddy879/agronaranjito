@@ -18,26 +18,30 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // ================== DEBUG ==================
-console.log("USER:", process.env.MONGO_USER);
-console.log("DB:",   process.env.MONGO_DB);
+console.log("USER:", process.env.MONGO_USER || 'agro_2026');
+console.log("DB:",   process.env.MONGO_DB || 'agro-123');
 
 // ================== MONGO ==================
-// ================== MONGO ==================
+// Si Render no lee las variables de entorno, usará los valores de la derecha por defecto
 const user = process.env.MONGO_USER || 'agro_2026';
-const pass = encodeURIComponent(process.env.MONGO_PASS || 'agro');
-const db   = process.env.MONGO_DB || 'agro';
+const pass = encodeURIComponent(process.env.MONGO_PASS || 'FnGw36LekUz0Fla5');
+const db   = process.env.MONGO_DB || 'agro-123'; 
 
 const URI = `mongodb+srv://${user}:${pass}@cluster0.8otlbi7.mongodb.net/${db}?retryWrites=true&w=majority`;
 
 mongoose.set('strictQuery', false);
-mongoose.connect(URI, {
-  serverSelectionTimeoutMS: 5000,
-  maxPoolSize: 20,
-  socketTimeoutMS: 45000,
-})
-.then(() => console.log("✅ Mongo conectado"))
-.catch(err => console.log("❌ Error Mongo:", err));
 
+// ⚠️ Crucial: Desactiva el buffering para que la app no se quede congelada 10 segundos si falla
+mongoose.set('bufferCommands', false); 
+
+mongoose.connect(URI, {
+  serverSelectionTimeoutMS: 5000, // Si no conecta en 5 segundos, avisa de inmediato
+  maxPoolSize: 20,
+})
+.then(() => console.log("✅ Mongo conectado exitosamente"))
+.catch(err => {
+  console.error("❌ Error de conexión en Mongo:", err.message);
+});
 // ================== MODELOS ==================
 
 const Producto = mongoose.model('Producto', {
