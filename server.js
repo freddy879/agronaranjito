@@ -1,25 +1,23 @@
 require('dotenv').config();
-
 const express = require('express');
-const admin = require('firebase-admin'); // 1. Cambiamos NeDB por Firebase
+const cors = require('cors'); // <-- Integración de CORS oficial
+const admin = require('firebase-admin');
 
 const app = express();
 
-// Configuración CORS — acepta cualquier origen, incluyendo file:// (origin: null)
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
-  next();
-});
+// Configuración de CORS automática y segura para producción y local
+app.use(cors());
 
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // <-- Agregado por si tu frontend envía formularios tradicionales
+app.use(express.urlencoded({ extended: true })); 
 app.use(express.static('.'));
 
 // ================== CONEXIÓN A FIREBASE CLOUD FIRESTORE ==================
-// LEER DESDE VARIABLES DE ENTORNO EN LUGAR DE ARCHIVO FÍSICO (Solución para Render)
+if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+  console.error("❌ ERROR CRÍTICO: La variable de entorno FIREBASE_SERVICE_ACCOUNT no está configurada en Render.");
+  process.exit(1); 
+}
+
 try {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
@@ -29,8 +27,9 @@ try {
 
   console.log("✅ ¡Conectado exitosamente a Firebase Cloud Firestore en la nube!");
 } catch (error) {
-  console.error("❌ Error crítico al inicializar Firebase. Verifica las Variables de Entorno:");
+  console.error("❌ Error al procesar el JSON de FIREBASE_SERVICE_ACCOUNT. Asegúrate de que el contenido en Render esté completo:");
   console.error(error.message);
+  process.exit(1);
 }
 
 const db = admin.firestore();
