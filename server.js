@@ -19,15 +19,21 @@ app.use(express.urlencoded({ extended: true })); // <-- Agregado por si tu front
 app.use(express.static('.'));
 
 // ================== CONEXIÓN A FIREBASE CLOUD FIRESTORE ==================
-// Cargamos tu archivo JSON con la clave privada de Google
-const serviceAccount = require("./firebase-key.json");
+// LEER DESDE VARIABLES DE ENTORNO EN LUGAR DE ARCHIVO FÍSICO (Solución para Render)
+try {
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+
+  console.log("✅ ¡Conectado exitosamente a Firebase Cloud Firestore en la nube!");
+} catch (error) {
+  console.error("❌ Error crítico al inicializar Firebase. Verifica las Variables de Entorno:");
+  console.error(error.message);
+}
 
 const db = admin.firestore();
-console.log("✅ ¡Conectado exitosamente a Firebase Cloud Firestore en la nube!");
 
 // Helper para mapear los documentos de Firebase trayendo su ID único de Google (_id)
 const mapearDocs = (snapshot) => {
@@ -117,7 +123,6 @@ app.delete('/productos/:id', async (req, res) => {
 // ================== CLIENTES ==================
 app.post('/clientes', async (req, res) => {
   try {
-    // Esto imprimirá en tu terminal lo que envía el frontend para que puedas revisarlo si falla
     console.log("➡️ Datos recibidos en POST /clientes:", req.body);
 
     const nuevoCliente = {
@@ -142,7 +147,6 @@ app.post('/clientes', async (req, res) => {
 
 app.get('/clientes', async (req, res) => {
   try {
-    // Firebase ordena con .orderBy
     const snapshot = await db.collection('clientes').orderBy('fecha', 'desc').get();
     res.json(mapearDocs(snapshot));
   } catch (err) {
