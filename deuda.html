@@ -47,7 +47,7 @@
 </div>
 
 <div class="main">
-  <div class="header">💸 Deudas - Bazar Bellita</div>
+  <div class="header">💸 Deudas - Agro Naranjito</div>
   <div class="contenido">
 
     <div class="card">
@@ -322,7 +322,7 @@ function mostrar(lista) {
           return `$${p.monto} — ${new Date(p.fecha).toLocaleString()} — ${metodo}`;
         }).join("<br>")
       : "Sin pagos";
-    let mensaje = encodeURIComponent(`Hola ${d.cliente}, le saluda Locales Bellita.\n\nLe recordamos que mantiene una deuda pendiente de $${restante.toFixed(2)}.\n\nGracias por su atención.`);
+    let mensaje = encodeURIComponent(`Hola ${d.cliente}, le saluda Agro Naranjito.\n\nLe recordamos que mantiene una deuda pendiente de $${restante.toFixed(2)}.\n\nGracias por su atención.`);
     let numero = (d.celular || "").replace(/^0/, "593");
     let badgeProds = cantProds > 1 ? `<br><span class="badge-acum">📦 ${cantProds} productos</span>` : "";
     html += `
