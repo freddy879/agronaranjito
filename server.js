@@ -1,45 +1,36 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors'); // <-- Integración de CORS oficial
+const cors = require('cors');
 const admin = require('firebase-admin');
 
 const app = express();
 
-// Configuración de CORS automática y segura para producción y local
 app.use(cors());
-
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); 
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static('.'));
 
 // ================== CONEXIÓN A FIREBASE CLOUD FIRESTORE ==================
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   console.error("❌ ERROR CRÍTICO: La variable de entorno FIREBASE_SERVICE_ACCOUNT no está configurada en Render.");
-  process.exit(1); 
+  process.exit(1);
 }
 
 try {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-  });
-
+  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
   console.log("✅ ¡Conectado exitosamente a Firebase Cloud Firestore en la nube!");
 } catch (error) {
-  console.error("❌ Error al procesar el JSON de FIREBASE_SERVICE_ACCOUNT. Asegúrate de que el contenido en Render esté completo:");
+  console.error("❌ Error al procesar el JSON de FIREBASE_SERVICE_ACCOUNT:");
   console.error(error.message);
   process.exit(1);
 }
 
 const db = admin.firestore();
 
-// Helper para mapear los documentos de Firebase trayendo su ID único de Google (_id)
 const mapearDocs = (snapshot) => {
   const docs = [];
-  snapshot.forEach(doc => {
-    docs.push({ _id: doc.id, ...doc.data() });
-  });
+  snapshot.forEach(doc => docs.push({ _id: doc.id, ...doc.data() }));
   return docs;
 };
 
@@ -85,7 +76,6 @@ app.put('/productos/agregar/:id', async (req, res) => {
 
     const p = doc.data();
     const nuevoStock = (p.stock || 0) + Number(req.body.cantidad);
-
     await docRef.update({ stock: nuevoStock });
     res.json({ ok: true });
   } catch (err) {
@@ -102,7 +92,6 @@ app.put('/productos/vender/:id', async (req, res) => {
     const p = doc.data();
     let nuevoStock = (p.stock || 0) - Number(req.body.cantidad);
     if (nuevoStock < 0) nuevoStock = 0;
-
     await docRef.update({ stock: nuevoStock });
     res.json({ ok: true });
   } catch (err) {
@@ -125,12 +114,12 @@ app.post('/clientes', async (req, res) => {
     console.log("➡️ Datos recibidos en POST /clientes:", req.body);
 
     const nuevoCliente = {
-      nombre: req.body.nombre || "Sin Nombre",
-      cedula: req.body.cedula || "Sin Cédula",
-      direccion: req.body.direccion || "",
-      telefono: req.body.telefono || "",
-      correo: req.body.correo || "",
-      deudaTotal: Number(req.body.deudaTotal || 0),
+      nombre:     req.body.nombre    || "Sin Nombre",
+      cedula:     req.body.cedula    || "Sin Cédula",
+      direccion:  req.body.direccion || "",
+      telefono:   req.body.telefono  || "",
+      correo:     req.body.correo    || "",
+      deudaTotal:  Number(req.body.deudaTotal  || 0),
       deudaActual: Number(req.body.deudaActual || 0),
       estado: req.body.estado || "normal",
       fecha: req.body.fecha ? new Date(req.body.fecha).toISOString() : new Date().toISOString()
@@ -163,11 +152,10 @@ app.post('/clientes/sumar-deuda', async (req, res) => {
     const docRef = snapshot.docs[0].ref;
     const cliente = snapshot.docs[0].data();
 
-    const deudaTotal = (cliente.deudaTotal || 0) + Number(total);
+    const deudaTotal  = (cliente.deudaTotal  || 0) + Number(total);
     const deudaActual = (cliente.deudaActual || 0) + Number(total);
 
     await docRef.update({ deudaTotal, deudaActual, estado: "deudor" });
-    
     res.json({ ok: true, cliente: { _id: docRef.id, ...cliente, deudaTotal, deudaActual, estado: "deudor" } });
   } catch (err) {
     res.status(500).json({ error: "Error al actualizar deuda" });
@@ -233,7 +221,6 @@ app.post('/ventas', async (req, res) => {
 
     await db.collection('ventas').add(nuevaVenta);
 
-    // Manejo de Cajas
     const cajasSnapshot = await db.collection('cajas').where('activa', '==', true).get();
     if (!cajasSnapshot.empty) {
       const cajaRef = cajasSnapshot.docs[0].ref;
@@ -245,7 +232,8 @@ app.post('/ventas', async (req, res) => {
 
         if (req.body.tipo === "efectivo") {
           caja.movimientos.push({
-            tipo: "ingreso", monto: req.body.total, motivo: "Venta efectivo", fecha: new Date().toISOString()
+            tipo: "ingreso", monto: req.body.total,
+            motivo: "Venta efectivo", fecha: new Date().toISOString()
           });
         } else {
           caja.movimientos.push({
@@ -265,16 +253,16 @@ app.post('/ventas', async (req, res) => {
 
     if (req.body.tipo === "credito") {
       await db.collection('deudas').add({
-        cliente: req.body.cliente,
-        cedula: req.body.cedula || "SIN CÉDULA",
-        celular: req.body.celular || "",
-        correo: req.body.correo || "",
+        cliente:   req.body.cliente,
+        cedula:    req.body.cedula    || "SIN CÉDULA",
+        celular:   req.body.celular   || "",
+        correo:    req.body.correo    || "",
         direccion: req.body.direccion || "",
-        total: req.body.total,
-        pagado: 0,
+        total:     req.body.total,
+        pagado:    0,
         productos: req.body.productos || [],
-        pagos: [],
-        fecha: new Date().toISOString()
+        pagos:     [],
+        fecha:     new Date().toISOString()
       });
     }
 
@@ -284,7 +272,6 @@ app.post('/ventas', async (req, res) => {
   }
 });
 
-// ================== BORRAR PRODUCTO DE VENTA ==================
 app.delete('/ventas/producto/:ventaId/:indice', async (req, res) => {
   try {
     const docRef = db.collection('ventas').doc(req.params.ventaId);
@@ -303,10 +290,7 @@ app.delete('/ventas/producto/:ventaId/:indice', async (req, res) => {
       await docRef.delete();
       return res.json({ msg: "Venta eliminada (quedó sin productos)" });
     } else {
-      venta.total = venta.productos.reduce((sum, p) => {
-        return sum + (Number(p.precio || 0) * Number(p.cantidad || 1));
-      }, 0);
-
+      venta.total = venta.productos.reduce((sum, p) => sum + (Number(p.precio || 0) * Number(p.cantidad || 1)), 0);
       await docRef.update({ productos: venta.productos, total: venta.total });
       res.json({ msg: "Producto eliminado correctamente" });
     }
@@ -315,14 +299,13 @@ app.delete('/ventas/producto/:ventaId/:indice', async (req, res) => {
   }
 });
 
-// ================== BORRAR DÍA ==================
 app.delete('/ventas/dia', async (req, res) => {
   try {
     const { fecha } = req.body;
     if (!fecha) return res.status(400).json({ error: "Falta fecha" });
 
     const inicio = new Date(fecha + "T00:00:00.000Z").toISOString();
-    const fin = new Date(fecha + "T23:59:59.999Z").toISOString();
+    const fin    = new Date(fecha + "T23:59:59.999Z").toISOString();
 
     const snapshot = await db.collection('ventas')
       .where('fecha', '>=', inicio)
@@ -330,9 +313,7 @@ app.delete('/ventas/dia', async (req, res) => {
       .get();
 
     const batch = db.batch();
-    snapshot.docs.forEach((doc) => {
-      batch.delete(doc.ref);
-    });
+    snapshot.docs.forEach(doc => batch.delete(doc.ref));
     await batch.commit();
 
     res.json({ ok: true, msg: `${snapshot.size} venta(s) eliminadas`, deleted: snapshot.size });
@@ -354,16 +335,16 @@ app.get('/deudas', async (req, res) => {
 app.post('/deudas', async (req, res) => {
   try {
     const nueva = {
-      cliente: req.body.cliente || "",
-      cedula: req.body.cedula || "-",
-      celular: req.body.celular || "",
+      cliente:   req.body.cliente   || "",
+      cedula:    req.body.cedula    || "-",
+      celular:   req.body.celular   || "",
       direccion: req.body.direccion || "",
-      correo: req.body.correo || "",
-      total: Number(req.body.total || 0),
-      pagado: 0,
+      correo:    req.body.correo    || "",
+      total:     Number(req.body.total || 0),
+      pagado:    0,
       productos: req.body.productos || [],
-      pagos: [],
-      fecha: new Date().toISOString()
+      pagos:     [],
+      fecha:     req.body.fecha ? new Date(req.body.fecha).toISOString() : new Date().toISOString()
     };
 
     const resultado = await db.collection('deudas').add(nueva);
@@ -388,52 +369,64 @@ app.post('/deudas/pagar', async (req, res) => {
 
     deuda.pagado += monto;
     if (!deuda.pagos) deuda.pagos = [];
-    deuda.pagos.push({ monto, fecha: new Date().toISOString() });
+    deuda.pagos.push({
+      monto,
+      tipoPago:   req.body.tipoPago   || req.body.metodoPago || "efectivo",
+      banco:      req.body.banco      || "",
+      comprobante: req.body.comprobante || "",
+      remitente:  req.body.remitente  || "",
+      fecha:      new Date().toISOString()
+    });
 
     await docRef.update(deuda);
 
+    // Registrar en caja activa
     const cajasSnapshot = await db.collection('cajas').where('activa', '==', true).get();
     if (!cajasSnapshot.empty) {
       const cajaRef = cajasSnapshot.docs[0].ref;
-      const caja = cajasSnapshot.docs[0].data();
+      const caja    = cajasSnapshot.docs[0].data();
 
-      const metodoPago = req.body.metodoPago || "efectivo";
-      const banco = req.body.banco || "";
+      const tipoPago   = req.body.tipoPago || req.body.metodoPago || "efectivo";
+      const banco      = req.body.banco      || "";
       const comprobante = req.body.comprobante || "";
+      const remitente  = req.body.remitente  || deuda.cliente || "";
 
+      // Siempre suma a ingresos (abono es un ingreso, no un gasto)
       caja.ingresos = (caja.ingresos || 0) + monto;
       if (!caja.movimientos) caja.movimientos = [];
 
-      if (metodoPago === "transferencia") {
+      if (tipoPago === "transferencia") {
         caja.movimientos.push({
-          tipo: "transferencia",
+          tipo:        "transferencia",
           monto,
-          motivo: `Abono deuda — ${deuda.cliente}`,
+          motivo:      `Abono deuda — ${deuda.cliente}`,
           banco,
+          cuenta:      req.body.cuenta || "",
           comprobante,
-          remitente: deuda.cliente || "",
-          fecha: new Date().toISOString()
+          remitente,
+          fecha:       new Date().toISOString()
         });
       } else {
         caja.movimientos.push({
-          tipo: "gasto",
+          tipo:   "ingreso",
           monto,
           motivo: `Abono deuda efectivo — ${deuda.cliente}`,
-          fecha: new Date().toISOString()
+          fecha:  new Date().toISOString()
         });
       }
+
       await cajaRef.update(caja);
     }
 
     res.json({
-      cliente: deuda.cliente,
-      cedula: deuda.cedula || "-",
-      celular: deuda.celular || "",
+      cliente:   deuda.cliente,
+      cedula:    deuda.cedula   || "-",
+      celular:   deuda.celular  || "",
       monto,
-      total: deuda.total,
-      restante: deuda.total - deuda.pagado,
-      pagado: deuda.pagado,
-      pagos: deuda.pagos || [],
+      total:     deuda.total,
+      restante:  deuda.total - deuda.pagado,
+      pagado:    deuda.pagado,
+      pagos:     deuda.pagos    || [],
       productos: deuda.productos || []
     });
   } catch (err) {
@@ -448,17 +441,17 @@ app.put('/deudas/:id', async (req, res) => {
     if (!doc.exists) return res.status(404).json({ error: "Deuda no encontrada" });
 
     const deuda = doc.data();
-    if (req.body.cliente !== undefined) deuda.cliente = req.body.cliente;
-    if (req.body.cedula !== undefined) deuda.cedula = req.body.cedula;
-    if (req.body.celular !== undefined) deuda.celular = req.body.celular;
+    if (req.body.cliente   !== undefined) deuda.cliente   = req.body.cliente;
+    if (req.body.cedula    !== undefined) deuda.cedula    = req.body.cedula;
+    if (req.body.celular   !== undefined) deuda.celular   = req.body.celular;
     if (req.body.direccion !== undefined) deuda.direccion = req.body.direccion;
-    if (req.body.total !== undefined) deuda.total = Number(req.body.total);
+    if (req.body.total     !== undefined) deuda.total     = Number(req.body.total);
     if (req.body.productos !== undefined) deuda.productos = req.body.productos;
-    if (req.body.pagado !== undefined) deuda.pagado = Number(req.body.pagado);
-    if (req.body.pagos !== undefined) deuda.pagos = req.body.pagos;
+    if (req.body.pagado    !== undefined) deuda.pagado    = Number(req.body.pagado);
+    if (req.body.pagos     !== undefined) deuda.pagos     = req.body.pagos;
 
     await docRef.update(deuda);
-    res.json({ ok: true, deuda: { _id: docRef.id, ...deuda } });
+    res.json({ ok: true, deuda: { _id: docRef.id, ...deuda }, mensaje: "Editado correctamente" });
   } catch (err) {
     res.status(500).json({ error: "Error al editar deuda" });
   }
@@ -484,16 +477,15 @@ app.post('/caja/abrir', async (req, res) => {
       await abiertaSnapshot.docs[0].ref.update({ activa: false, horaCierre: new Date().toISOString() });
     }
 
-    const nuevaCaja = {
-      apertura: monto,
-      ingresos: 0,
-      gastos: 0,
-      activa: true,
+    await db.collection('cajas').add({
+      apertura:     monto,
+      ingresos:     0,
+      gastos:       0,
+      activa:       true,
       horaApertura: new Date().toISOString(),
-      movimientos: [{ tipo: "inicio", monto, motivo: "Apertura de caja", fecha: new Date().toISOString() }]
-    };
+      movimientos:  [{ tipo: "inicio", monto, motivo: "Apertura de caja", fecha: new Date().toISOString() }]
+    });
 
-    await db.collection('cajas').add(nuevaCaja);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Error al abrir caja" });
@@ -507,8 +499,8 @@ app.get('/caja', async (req, res) => {
 
     const caja = snapshot.docs[0].data();
     let transferencias = 0;
-    let gastosLista = [];
-    let transferenciasList = [];
+    const gastosLista = [];
+    const transferenciasList = [];
 
     (caja.movimientos || []).forEach(m => {
       if (m.tipo === "transferencia") {
@@ -521,15 +513,15 @@ app.get('/caja', async (req, res) => {
     });
 
     res.json({
-      apertura: caja.apertura,
-      ingresos: caja.ingresos,
+      apertura:         caja.apertura,
+      ingresos:         caja.ingresos,
       transferencias,
-      gastos: caja.gastos,
-      saldo: caja.apertura + caja.ingresos - caja.gastos,
-      horaApertura: caja.horaApertura,
+      gastos:           caja.gastos,
+      saldo:            caja.apertura + caja.ingresos - caja.gastos,
+      horaApertura:     caja.horaApertura,
       gastosLista,
       transferenciasList,
-      movimientos: caja.movimientos || []
+      movimientos:      caja.movimientos || []
     });
   } catch (err) {
     res.json({ apertura: 0, ingresos: 0, gastos: 0, transferencias: 0, saldo: 0 });
@@ -542,9 +534,9 @@ app.post('/caja/gasto', async (req, res) => {
     if (snapshot.empty) return res.json({ error: "Caja no abierta" });
 
     const docRef = snapshot.docs[0].ref;
-    const caja = snapshot.docs[0].data();
+    const caja   = snapshot.docs[0].data();
 
-    const monto = Number(req.body.monto || 0);
+    const monto  = Number(req.body.monto || 0);
     const motivo = req.body.motivo || "Sin motivo";
     if (!monto || monto <= 0) return res.json({ error: "Monto inválido" });
 
@@ -565,7 +557,7 @@ app.post('/caja/transferencia', async (req, res) => {
     if (snapshot.empty) return res.json({ error: "Caja no abierta" });
 
     const docRef = snapshot.docs[0].ref;
-    const caja = snapshot.docs[0].data();
+    const caja   = snapshot.docs[0].data();
 
     const monto = Number(req.body.monto || 0);
     if (!monto || monto <= 0) return res.json({ error: "Monto inválido" });
@@ -573,14 +565,14 @@ app.post('/caja/transferencia', async (req, res) => {
     caja.ingresos = (caja.ingresos || 0) + monto;
     if (!caja.movimientos) caja.movimientos = [];
     caja.movimientos.push({
-      tipo: "transferencia",
+      tipo:        "transferencia",
       monto,
-      motivo: `Transferencia ${req.body.banco || ""}`,
-      banco: req.body.banco || "",
-      cuenta: req.body.cuenta || "",
-      comprobante: req.body.comprobante || "",
-      remitente: req.body.remitente || "",
-      fecha: new Date().toISOString()
+      motivo:      req.body.motivo || `Transferencia ${req.body.banco || ""}`,
+      banco:       req.body.banco        || "",
+      cuenta:      req.body.cuenta       || "",
+      comprobante: req.body.comprobante  || "",
+      remitente:   req.body.remitente    || "",
+      fecha:       new Date().toISOString()
     });
 
     await docRef.update(caja);
@@ -590,19 +582,18 @@ app.post('/caja/transferencia', async (req, res) => {
   }
 });
 
-// ================== CIERRE CAJA ==================
 app.post('/caja/cerrar', async (req, res) => {
   try {
     const snapshot = await db.collection('cajas').where('activa', '==', true).get();
     if (snapshot.empty) return res.json({ error: "Caja no abierta" });
 
     const docRef = snapshot.docs[0].ref;
-    const caja = snapshot.docs[0].data();
+    const caja   = snapshot.docs[0].data();
 
-    const real = Number(req.body.montoReal);
+    const real  = Number(req.body.montoReal);
     const dejar = Number(req.body.dejar || 0);
 
-    const esperado = caja.apertura + caja.ingresos - caja.gastos;
+    const esperado  = caja.apertura + caja.ingresos - caja.gastos;
     const diferencia = real - esperado;
 
     let transferencias = 0;
@@ -610,14 +601,14 @@ app.post('/caja/cerrar', async (req, res) => {
     const transferenciasList = [];
 
     (caja.movimientos || []).forEach(m => {
-      if (m.tipo === "gasto") gastosLista.push(m);
+      if (m.tipo === "gasto")         gastosLista.push(m);
       if (m.tipo === "transferencia") { transferenciasList.push(m); transferencias += m.monto; }
     });
 
-    caja.activa = false;
-    caja.cierre = real;
+    caja.activa    = false;
+    caja.cierre    = real;
     caja.horaCierre = new Date().toISOString();
-    caja.dejado = dejar;
+    caja.dejado    = dejar;
     caja.movimientos.push({
       tipo: "cierre", monto: real,
       motivo: `Cierre de caja | Dejado: $${dejar}`,
@@ -628,26 +619,26 @@ app.post('/caja/cerrar', async (req, res) => {
 
     if (dejar > 0) {
       await db.collection('cajas').add({
-        apertura: dejar,
-        ingresos: 0,
-        gastos: 0,
-        activa: true,
+        apertura:     dejar,
+        ingresos:     0,
+        gastos:       0,
+        activa:       true,
         horaApertura: new Date().toISOString(),
-        movimientos: [{ tipo: "inicio", monto: dejar, motivo: "Apertura automática", fecha: new Date().toISOString() }]
+        movimientos:  [{ tipo: "inicio", monto: dejar, motivo: "Apertura automática", fecha: new Date().toISOString() }]
       });
     }
 
     res.json({
-      apertura: caja.apertura,
-      ingresos: caja.ingresos,
+      apertura:       caja.apertura,
+      ingresos:       caja.ingresos,
       transferencias,
-      gastos: caja.gastos,
+      gastos:         caja.gastos,
       esperado,
       real,
       diferencia,
       dejar,
-      fechaApertura: caja.horaApertura,
-      fechaCierre: caja.horaCierre,
+      fechaApertura:  caja.horaApertura,
+      fechaCierre:    caja.horaCierre,
       gastosLista,
       transferenciasList
     });
@@ -670,20 +661,20 @@ app.get('/caja/historial', async (req, res) => {
       const transferenciasList = [];
 
       (c.movimientos || []).forEach(m => {
-        if (m.tipo === "gasto") gastosLista.push(m);
+        if (m.tipo === "gasto")         gastosLista.push(m);
         if (m.tipo === "transferencia") { transferenciasList.push(m); transferencias += m.monto; }
       });
 
       return {
-        fechaApertura: c.horaApertura,
-        fechaCierre: c.horaCierre,
-        apertura: c.apertura,
-        ingresos: c.ingresos,
+        fechaApertura:    c.horaApertura,
+        fechaCierre:      c.horaCierre,
+        apertura:         c.apertura,
+        ingresos:         c.ingresos,
         transferencias,
-        gastos: c.gastos,
-        real: c.cierre,
-        diferencia: c.cierre - (c.apertura + c.ingresos - c.gastos),
-        dejar: c.dejado || 0,
+        gastos:           c.gastos,
+        real:             c.cierre,
+        diferencia:       c.cierre - (c.apertura + c.ingresos - c.gastos),
+        dejar:            c.dejado || 0,
         gastosLista,
         transferenciasList
       };
@@ -708,15 +699,15 @@ app.get('/analisis', async (req, res) => {
     let transferencia = 0;
 
     const productos = {};
-    const porDia = {};
-    const porMes = {};
+    const porDia    = {};
+    const porMes    = {};
 
     ventas.forEach(v => {
       const total = Number(v.total || 0);
       totalGeneral += total;
 
-      if (v.tipo === "efectivo") efectivo++;
-      if (v.tipo === "credito") credito++;
+      if (v.tipo === "efectivo")     efectivo++;
+      if (v.tipo === "credito")      credito++;
       if (v.tipo === "transferencia") transferencia++;
 
       let dia = "Desconocido";
@@ -733,10 +724,10 @@ app.get('/analisis', async (req, res) => {
 
       if (Array.isArray(v.productos)) {
         v.productos.forEach(p => {
-          const nombre = p.nombre || "Sin nombre";
+          const nombre   = p.nombre   || "Sin nombre";
           const cantidad = Number(p.cantidad || 1);
-          const precio = Number(p.precio || 0);
-          const costo = Number(p.costo || 0);
+          const precio   = Number(p.precio   || 0);
+          const costo    = Number(p.costo    || 0);
           const ganancia = (precio - costo) * cantidad;
 
           if (!productos[nombre]) {
@@ -750,26 +741,19 @@ app.get('/analisis', async (req, res) => {
 
     const lista = Object.values(productos);
 
-    const masVendidos = [...lista].sort((a, b) => b.vendidos - a.vendidos).slice(0, 5);
-    const menosVendidos = [...lista].sort((a, b) => a.vendidos - b.vendidos).slice(0, 5);
-    const masGanancia = [...lista].sort((a, b) => b.ganancia - a.ganancia).slice(0, 5);
-    const menosGanancia = [...lista].sort((a, b) => a.ganancia - b.ganancia).slice(0, 5);
-
-    const clientesUnicos = new Set(ventas.map(v => v.cedula || v.cliente)).size;
-
     res.json({
       ventas,
       totalGeneral,
       efectivo,
       credito,
       transferencia,
-      clientes: clientesUnicos,
+      clientes:       new Set(ventas.map(v => v.cedula || v.cliente)).size,
       porDia,
       porMes,
-      masVendidos,
-      menosVendidos,
-      masGanancia,
-      menosGanancia
+      masVendidos:    [...lista].sort((a, b) => b.vendidos  - a.vendidos).slice(0, 5),
+      menosVendidos:  [...lista].sort((a, b) => a.vendidos  - b.vendidos).slice(0, 5),
+      masGanancia:    [...lista].sort((a, b) => b.ganancia  - a.ganancia).slice(0, 5),
+      menosGanancia:  [...lista].sort((a, b) => a.ganancia  - b.ganancia).slice(0, 5)
     });
   } catch (err) {
     res.status(500).json({ error: "Error al obtener análisis" });
