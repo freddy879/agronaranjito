@@ -15,7 +15,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static('.'));
 
 // ================== BASE DE DATOS LOCAL (NeDB) ==================
 // Se crean automáticamente archivos .db locales sin necesidad de servidores en la nube
@@ -675,12 +675,4 @@ app.get('/analisis', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("🚀 Servidor local corriendo en: http://localhost:" + PORT);
-});  res.status(500).json({ error: "Error al obtener análisis" });
-  }
-});
-
-// ================== SERVER ==================
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("🚀 http://localhost:" + PORT);
 });
