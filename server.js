@@ -17,14 +17,19 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // ================== MONGO ==================
-// En Render, crea UNA sola variable: MONGO_URI
-// Valor: mongodb+srv://miguel_2021:agro123@cluster0.8otlbi7.mongodb.net/agro?retryWrites=true&w=majority
-const URI = process.env.MONGO_URI;
+const user = process.env.MONGO_USER;
+const pass = process.env.MONGO_PASS;
+const db   = process.env.MONGO_DB;
+
+const URI = process.env.MONGO_URI ||
+  `mongodb+srv://${user}:${pass}@cluster0.8otlbi7.mongodb.net/${db}?retryWrites=true&w=majority`;
 
 if (!URI) {
-  console.error("❌ Falta la variable MONGO_URI");
+  console.error("❌ Falta configuración de Mongo");
   process.exit(1);
 }
+
+console.log("🔗 Conectando a Mongo...");
 
 mongoose.set('strictQuery', false);
 mongoose.connect(URI, {
@@ -34,14 +39,13 @@ mongoose.connect(URI, {
 .then(() => console.log("✅ Mongo conectado"))
 .catch(err => {
   console.error("❌ Error Mongo:", err.message);
-  process.exit(1); // Render reiniciará el servidor automáticamente
+  process.exit(1);
 });
 
 mongoose.connection.on('disconnected', () => {
   console.log('⚠️ Mongo desconectado, reconectando...');
   mongoose.connect(URI);
 });
-
 // ================== MODELOS ==================
 const Producto = mongoose.model('Producto', {
   nombre:       String,
