@@ -15,6 +15,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // <-- Agregado por si tu frontend envía formularios tradicionales
 app.use(express.static('.'));
 
 // ================== CONEXIÓN A FIREBASE CLOUD FIRESTORE ==================
@@ -116,12 +117,15 @@ app.delete('/productos/:id', async (req, res) => {
 // ================== CLIENTES ==================
 app.post('/clientes', async (req, res) => {
   try {
+    // Esto imprimirá en tu terminal lo que envía el frontend para que puedas revisarlo si falla
+    console.log("➡️ Datos recibidos en POST /clientes:", req.body);
+
     const nuevoCliente = {
-      nombre: req.body.nombre,
-      cedula: req.body.cedula,
-      direccion: req.body.direccion,
-      telefono: req.body.telefono,
-      correo: req.body.correo,
+      nombre: req.body.nombre || "Sin Nombre",
+      cedula: req.body.cedula || "Sin Cédula",
+      direccion: req.body.direccion || "",
+      telefono: req.body.telefono || "",
+      correo: req.body.correo || "",
       deudaTotal: Number(req.body.deudaTotal || 0),
       deudaActual: Number(req.body.deudaActual || 0),
       estado: req.body.estado || "normal",
@@ -131,7 +135,8 @@ app.post('/clientes', async (req, res) => {
     const resultado = await db.collection('clientes').add(nuevoCliente);
     res.json({ ok: true, cliente: { _id: resultado.id, ...nuevoCliente } });
   } catch (err) {
-    res.status(500).json({ error: "Error al guardar cliente" });
+    console.error("❌ Error grave al guardar cliente en Firebase:", err);
+    res.status(500).json({ error: "Error al guardar cliente", detalle: err.message });
   }
 });
 
@@ -316,7 +321,6 @@ app.delete('/ventas/dia', async (req, res) => {
     const inicio = new Date(fecha + "T00:00:00.000Z").toISOString();
     const fin = new Date(fecha + "T23:59:59.999Z").toISOString();
 
-    // Firebase permite filtrar rangos de strings con ISOString directamente
     const snapshot = await db.collection('ventas')
       .where('fecha', '>=', inicio)
       .where('fecha', '<=', fin)
@@ -385,7 +389,6 @@ app.post('/deudas/pagar', async (req, res) => {
 
     await docRef.update(deuda);
 
-    // Registrar abono en la caja activa si existe
     const cajasSnapshot = await db.collection('cajas').where('activa', '==', true).get();
     if (!cajasSnapshot.empty) {
       const cajaRef = cajasSnapshot.docs[0].ref;
@@ -410,7 +413,7 @@ app.post('/deudas/pagar', async (req, res) => {
         });
       } else {
         caja.movimientos.push({
-          tipo: "ingreso",
+          tipo: "gasto",
           monto,
           motivo: `Abono deuda efectivo — ${deuda.cliente}`,
           fecha: new Date().toISOString()
