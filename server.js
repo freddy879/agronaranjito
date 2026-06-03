@@ -22,9 +22,10 @@ console.log("USER:", process.env.MONGO_USER);
 console.log("DB:",   process.env.MONGO_DB);
 
 // ================== MONGO ==================
-const user = process.env.MONGO_USER;
-const pass = encodeURIComponent(process.env.MONGO_PASS);
-const db   = process.env.MONGO_DB;
+// ================== MONGO ==================
+const user = process.env.MONGO_USER || 'agro_2026';
+const pass = encodeURIComponent(process.env.MONGO_PASS || 'agro');
+const db   = process.env.MONGO_DB || 'agro';
 
 const URI = `mongodb+srv://${user}:${pass}@cluster0.8otlbi7.mongodb.net/${db}?retryWrites=true&w=majority`;
 
