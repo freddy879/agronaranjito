@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Caja </title>
+  <title>Caja</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', sans-serif; background: #f5f6fa; display: flex; }
@@ -50,139 +50,47 @@
     .aviso { background: #fff8e1; border: 1px solid #ffc107; border-radius: 6px; padding: 10px; margin-bottom: 10px; font-size: 12px; color: #795548; }
 
     /* ===== HISTORIAL ===== */
-    .historial-section {
-      padding: 0 20px 30px 20px;
-    }
-    .historial-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 14px;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
+    .historial-section { padding: 0 20px 30px 20px; }
+    .historial-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
     .historial-header h3 { font-size: 18px; color: #1e272e; }
-    .btn-borrar-todo {
-      background: #d63031;
-      color: white;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: bold;
-      font-size: 13px;
-    }
+    .btn-borrar-todo { background: #d63031; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; }
     .btn-borrar-todo:hover { background: #b71c1c; }
 
-    .historial-vacio {
-      color: #999;
-      font-size: 14px;
-      text-align: center;
-      padding: 30px 0;
-    }
+    .historial-vacio { color: #999; font-size: 14px; text-align: center; padding: 30px 0; }
 
-    .hist-item {
-      background: white;
-      border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-      margin-bottom: 12px;
-      overflow: hidden;
-    }
-    .hist-item-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 13px 18px;
-      background: #fafafa;
-      border-bottom: 1px solid #f0f0f0;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
+    .hist-item { background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); margin-bottom: 12px; overflow: hidden; }
+    .hist-item-header { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; background: #fafafa; border-bottom: 1px solid #f0f0f0; flex-wrap: wrap; gap: 8px; }
     .hist-fecha { font-weight: bold; font-size: 14px; color: #1e272e; }
     .hist-hora { font-size: 12px; color: #636e72; margin-top: 2px; }
-    .hist-saldo-badge {
-      background: #e8f5e9;
-      color: #2e7d32;
-      font-weight: bold;
-      padding: 5px 14px;
-      border-radius: 20px;
-      font-size: 14px;
-    }
-    .hist-item-body {
-      padding: 12px 18px;
-      display: none;
-      font-size: 13px;
-    }
+    .hist-saldo-badge { background: #e8f5e9; color: #2e7d32; font-weight: bold; padding: 5px 14px; border-radius: 20px; font-size: 14px; }
+    .hist-item-body { padding: 12px 18px; display: none; font-size: 13px; }
     .hist-item-body.abierto { display: block; }
 
-    .hist-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 5px 0;
-      border-bottom: 1px dashed #f0f0f0;
-    }
+    .hist-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed #f0f0f0; }
     .hist-row:last-child { border-bottom: none; }
     .hist-row span:first-child { color: #636e72; }
     .hist-row span:last-child { font-weight: 600; color: #2d3436; }
 
-    .hist-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .btn-toggle-hist {
-      background: #dfe6e9;
-      color: #2d3436;
-      border: none;
-      padding: 5px 12px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: bold;
-    }
+    .hist-actions { display: flex; align-items: center; gap: 8px; }
+    .btn-toggle-hist { background: #dfe6e9; color: #2d3436; border: none; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; }
     .btn-toggle-hist:hover { background: #b2bec3; }
-
-    .btn-del-dia {
-      background: #fff0f0;
-      color: #d63031;
-      border: 1px solid #ffcdd2;
-      padding: 5px 12px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: bold;
-    }
+    .btn-del-dia { background: #fff0f0; color: #d63031; border: 1px solid #ffcdd2; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; }
     .btn-del-dia:hover { background: #ffcdd2; }
 
     /* ===== MODAL ===== */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.45);
-      z-index: 1000;
-      align-items: center;
-      justify-content: center;
-    }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000; align-items: center; justify-content: center; }
     .modal-overlay.activo { display: flex; }
-    .modal-box {
-      background: white;
-      border-radius: 14px;
-      padding: 28px 32px;
-      width: 320px;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-      text-align: center;
-    }
+    .modal-box { background: white; border-radius: 14px; padding: 28px 32px; width: 340px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); text-align: center; }
     .modal-box h3 { margin-bottom: 12px; font-size: 17px; }
     .modal-box p { font-size: 13px; color: #636e72; margin-bottom: 14px; }
-    .modal-box input { margin-bottom: 10px; }
+    .modal-box input { margin-bottom: 10px; width: 100%; }
     .modal-btns { display: flex; gap: 10px; margin-top: 6px; }
     .modal-btns button { margin-top: 0; flex: 1; }
 
     @page { size: 80mm auto; margin: 0; }
     @media print {
       body { width: 80mm; font-family: monospace; font-size: 12px; }
-      .sidebar, button, .historial-section { display: none !important; }
+      .sidebar, button, .historial-section, .aviso, .badge { display: none !important; }
       .card { box-shadow: none; border: none; padding: 5px; }
     }
   </style>
@@ -204,14 +112,12 @@
 
   <div class="contenido">
 
-    <!-- ABRIR CAJA -->
     <div class="card">
       <h3>🟢 Abrir Caja</h3>
       <input id="monto" type="number" placeholder="Monto inicial en efectivo">
       <button onclick="abrir()">Abrir</button>
     </div>
 
-    <!-- ESTADO -->
     <div class="card">
       <h3>📊 Estado de Caja</h3>
       <div class="aviso">⚠️ Transferencias contadas <b>solo en caja</b>, no en ventas, para evitar duplicados.</div>
@@ -235,7 +141,6 @@
       <button onclick="cargar()">🔄 Actualizar</button>
     </div>
 
-    <!-- GASTO -->
     <div class="card">
       <h3>💸 Registrar Gasto</h3>
       <input id="gasto" type="number" placeholder="Monto del gasto">
@@ -243,16 +148,14 @@
       <button onclick="registrarGasto()">Registrar Gasto</button>
     </div>
 
-    <!-- CERRAR -->
     <div class="card">
       <h3>🔴 Cerrar Caja</h3>
       <p style="font-size:13px;color:#666;margin-bottom:8px;">El ticket imprimirá el detalle completo de transferencias (banco, comprobante, monto).</p>
-      <button onclick="cerrar()">Cerrar Caja</button>
+      <button onclick="abrirModalCierre()">Cerrar Caja</button>
     </div>
 
   </div>
 
-  <!-- ===== HISTORIAL ===== -->
   <div class="historial-section">
     <div class="historial-header">
       <h3>📋 Historial de Cierres</h3>
@@ -265,15 +168,16 @@
 
 </div>
 
-<!-- ===== MODAL CONTRASEÑA ===== -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal-box">
     <h3 id="modalTitulo">🔒 Confirmar Acción</h3>
-    <p id="modalDesc">Ingresa la contraseña para continuar.</p>
-    <input type="password" id="modalPass" placeholder="Contraseña" autocomplete="off">
+    <p id="modalDesc">Ingresa los datos para continuar.</p>
+    
+    <div id="modalInputsContainer"></div>
+    
     <div class="modal-btns">
-      <button onclick="cancelarModal()" class="btn-gray" style="background:#636e72;">Cancelar</button>
-      <button onclick="confirmarModal()" class="btn-danger" style="background:#d63031;">Confirmar</button>
+      <button onclick="cancelarModal()" class="btn-gray">Cancelar</button>
+      <button onclick="confirmarModal()" class="btn-danger" id="modalBtnConfirmar">Confirmar</button>
     </div>
   </div>
 </div>
@@ -286,13 +190,14 @@ const PASSWORD = "agro123";
 
 let transferenciasList = [];
 let modalAccion = null;
-let modalParam  = null;
+
+// Variables globales para recordar lo que tiene la caja actualmente en el frontend
+let cajaActual = { apertura: 0, ingresos: 0, transferencias: 0, gastos: 0, saldo: 0 };
 
 // ===================== HELPERS HISTORIAL =====================
 function getHistorial() {
   try {
     const data = localStorage.getItem(HISTORIAL_KEY);
-    console.log('📖 Historial leído:', data);
     return data ? JSON.parse(data) : [];
   } catch(e) { 
     console.error('Error al leer historial:', e);
@@ -303,7 +208,6 @@ function getHistorial() {
 function setHistorial(arr) {
   try {
     localStorage.setItem(HISTORIAL_KEY, JSON.stringify(arr));
-    console.log('💾 Historial guardado:', arr);
   } catch(e) {
     console.error('Error al guardar historial:', e);
   }
@@ -314,28 +218,37 @@ function guardarCierreEnHistorial(data) {
     let historial = getHistorial();
     const ahora = new Date();
     
+    // Si el backend no calcula los totales, los calcula el frontend con los datos en memoria
+    const aperturaVal = Number(data.apertura ?? cajaActual.apertura);
+    const ingresosVal = Number(data.ingresos ?? cajaActual.ingresos);
+    const transVal    = Number(data.transferencias ?? cajaActual.transferencias);
+    const gastosVal   = Number(data.gastos ?? cajaActual.gastos);
+    const saldoVal    = Number(data.saldo ?? cajaActual.saldo);
+    
+    const realVal     = Number(data.real ?? data.montoReal ?? 0);
+    const esperadoVal = Number(data.esperado ?? (aperturaVal + ingresosVal - gastosVal));
+    const difVal      = Number(data.diferencia ?? (realVal - esperadoVal));
+
     const nuevoRegistro = {
-      id: Date.now(), // ID único para cada cierre
+      id: Date.now(),
       fecha: ahora.toLocaleDateString('es-EC', { weekday:'long', year:'numeric', month:'long', day:'numeric' }),
       fechaISO: ahora.toISOString().split('T')[0],
       hora: ahora.toLocaleTimeString('es-EC', { hour:'2-digit', minute:'2-digit' }),
-      apertura:      data.apertura      ?? 0,
-      ingresos:      data.ingresos      ?? 0,
-      transferencias: data.transferencias ?? 0,
-      gastos:        data.gastos        ?? 0,
-      saldo:         data.saldo         ?? 0,
-      esperado:      data.esperado      ?? 0,
-      real:          data.real          ?? 0,
-      diferencia:    data.diferencia    ?? 0,
-      dejar:         data.dejar         ?? 0,
+      apertura:       aperturaVal,
+      ingresos:       ingresosVal,
+      transferencias: transVal,
+      gastos:         gastosVal,
+      saldo:          saldoVal,
+      esperado:       esperadoVal,
+      real:           realVal,
+      diferencia:     difVal,
+      dejar:          Number(data.dejar ?? 0),
     };
     
     historial.unshift(nuevoRegistro);
     setHistorial(historial);
-    console.log('✅ Cierre guardado en historial');
-    
   } catch(e) {
-    console.error('Error al guardar cierre:', e);
+    console.error('Error al estructurar cierre en historial:', e);
   }
 }
 
@@ -346,11 +259,8 @@ function renderHistorial() {
 
   if (!historial || historial.length === 0) {
     cont.innerHTML = '<div class="historial-vacio">📭 No hay cierres registrados aún.</div>';
-    console.log('✅ Historial vacío renderizado');
     return;
   }
-
-  console.log('🖼️ Renderizando', historial.length, 'cierres');
   
   cont.innerHTML = historial.map((item, i) => `
     <div class="hist-item" id="hist-item-${i}">
@@ -392,120 +302,112 @@ function toggleHist(i) {
   btn.textContent = abierto ? 'Cerrar ▲' : 'Ver ▼';
 }
 
-// ===================== MODAL =====================
-function abrirModal(titulo, desc, accion, param) {
+// ===================== MODAL ENGINE =====================
+function abrirModal(titulo, desc, inputsHTML, accion) {
   document.getElementById('modalTitulo').textContent = titulo;
   document.getElementById('modalDesc').textContent   = desc;
-  document.getElementById('modalPass').value         = '';
+  document.getElementById('modalInputsContainer').innerHTML = inputsHTML;
   modalAccion = accion;
-  modalParam  = param;
   document.getElementById('modalOverlay').classList.add('activo');
-  setTimeout(() => document.getElementById('modalPass').focus(), 100);
+  
+  // Foco automático en el primer input del modal
+  const primerInput = document.getElementById('modalInputsContainer').querySelector('input');
+  if (primerInput) setTimeout(() => primerInput.focus(), 100);
 }
 
 function cancelarModal() {
   document.getElementById('modalOverlay').classList.remove('activo');
-  document.getElementById('modalPass').value = '';
+  document.getElementById('modalInputsContainer').innerHTML = '';
   modalAccion = null;
-  modalParam  = null;
 }
 
 function confirmarModal() {
-  const pass = document.getElementById('modalPass').value;
-  if (pass !== PASSWORD) {
-    alert('❌ Contraseña incorrecta');
-    document.getElementById('modalPass').value = '';
-    document.getElementById('modalPass').focus();
-    return;
-  }
-  
-  const accion = modalAccion;
-  const param = modalParam;
-  cancelarModal();
-  
-  if (accion) {
-    accion(param);
+  if (modalAccion) {
+    modalAccion();
   }
 }
 
-// Cerrar modal con Escape o Enter
+// Atajo de teclado para cerrar el modal
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') cancelarModal();
-  if (e.key === 'Enter' && document.getElementById('modalOverlay').classList.contains('activo')) {
-    confirmarModal();
-  }
 });
 
-// ===================== BORRAR HISTORIAL =====================
+// ===================== ACCIONES DEL MODAL =====================
 function pedirBorrarDia(i) {
   const historial = getHistorial();
   const item = historial[i];
   if (!item) return;
+
+  const inputsHTML = `<input type="password" id="passBorrar" placeholder="Contraseña de Seguridad">`;
   
   abrirModal(
     '🗑️ Borrar este cierre',
-    `¿Eliminar el cierre del ${capitalizar(item.fecha)} a las ${item.hora}? Ingresa la contraseña.`,
-    borrarDia,
-    i
-  );
-}
-
-function borrarDia(i) {
-  try {
-    let historial = getHistorial();
-    if (historial[i]) {
+    `¿Eliminar el cierre del ${capitalizar(item.fecha)}?`,
+    inputsHTML,
+    () => {
+      const pass = document.getElementById('passBorrar').value;
+      if(pass !== PASSWORD) return alert('❌ Contraseña incorrecta');
+      
       historial.splice(i, 1);
       setHistorial(historial);
       renderHistorial();
-      console.log('✅ Cierre eliminado');
+      cancelarModal();
     }
-  } catch(e) {
-    console.error('Error al borrar cierre:', e);
-  }
+  );
 }
 
 function pedirBorrarTodo() {
   const historial = getHistorial();
-  
-  if (!historial || historial.length === 0) {
-    alert('El historial ya está vacío.');
-    return;
-  }
-  
-  console.log('🔴 Pidiendo confirmación para borrar', historial.length, 'registros');
-  
+  if (!historial.length) return alert('El historial ya está vacío.');
+
+  const inputsHTML = `<input type="password" id="passBorrarTodo" placeholder="Contraseña de Seguridad">`;
+
   abrirModal(
     '🗑️ Borrar TODO el historial',
-    `Vas a eliminar ${historial.length} cierre(s). ¿Estás segura? Ingresa la contraseña.`,
-    borrarTodo,
-    null
+    `Vas a eliminar ${historial.length} cierre(s) permanentemente.`,
+    inputsHTML,
+    () => {
+      const pass = document.getElementById('passBorrarTodo').value;
+      if(pass !== PASSWORD) return alert('❌ Contraseña incorrecta');
+      
+      setHistorial([]);
+      renderHistorial();
+      cancelarModal();
+      alert('✅ Historial eliminado correctamente');
+    }
   );
 }
 
-function borrarTodo() {
-  try {
-    setHistorial([]);
-    renderHistorial();
-    alert('✅ Historial eliminado correctamente');
-    console.log('✅ Todo el historial fue eliminado');
-  } catch(e) {
-    console.error('Error al borrar todo:', e);
-    alert('❌ Error al borrar el historial');
-  }
+function abrirModalCierre() {
+  const inputsHTML = `
+    <input type="number" id="cierreReal" placeholder="¿Cuánto dinero EFECTIVO hay en caja?" step="0.01">
+    <input type="number" id="cierreDejar" placeholder="¿Cuánto dinero vas a DEJAR en caja?" step="0.01">
+  `;
+  
+  abrirModal(
+    '🔴 Procesar Cierre de Caja',
+    'Ingresa los montos finales auditados en la caja física.',
+    inputsHTML,
+    async () => {
+      const real = document.getElementById('cierreReal').value;
+      const dejar = document.getElementById('cierreDejar').value || 0;
+
+      if (!real || isNaN(real) || Number(real) < 0) return alert("Por favor ingresa un monto real de efectivo válido");
+      
+      cancelarModal(); // Cerramos visualmente el modal para procesar
+      await ejecutarCierreBackend(Number(real), Number(dejar));
+    }
+  );
 }
 
-// ===================== TOGGLE DETALLE TRANSFERENCIAS =====================
+// ===================== INTERACCIONES DE FLUJO (API) =====================
 function toggleDetalle() {
   let d = document.getElementById('detalleTransferencias');
   d.style.display = d.style.display === 'block' ? 'none' : 'block';
 }
 
-// ===================== CONSTRUIR LISTA TRANSFERENCIAS =====================
 function construirListaTransferencias(data) {
-  let lista = [
-    ...(data?.transferenciasList || []),
-    ...(data?.transferenciasLista || [])
-  ];
+  let lista = [...(data?.transferenciasList || []), ...(data?.transferenciasLista || [])];
   let idsIncluidos = new Set(lista.map(t => t._id).filter(Boolean));
   let movimientos = data?.movimientos || [];
   movimientos.forEach(m => {
@@ -517,7 +419,6 @@ function construirListaTransferencias(data) {
   return lista;
 }
 
-// ===================== RENDER DETALLE TRANSFERENCIAS =====================
 function renderDetalle(lista) {
   let d = document.getElementById('detalleTransferencias');
   if (!lista || lista.length === 0) {
@@ -534,35 +435,38 @@ function renderDetalle(lista) {
   `).join('');
 }
 
-// ===================== CARGAR =====================
 async function cargar() {
   try {
     let res = await fetch(API + '/caja');
+    if (!res.ok) throw new Error("Error HTTP de respuesta");
     let data = await res.json();
 
-    document.getElementById('apertura').innerText       = data?.apertura       ?? 0;
-    document.getElementById('ingresos').innerText       = data?.ingresos       ?? 0;
-    document.getElementById('gastos').innerText         = data?.gastos         ?? 0;
-    document.getElementById('saldo').innerText          = data?.saldo          ?? 0;
-    document.getElementById('transferencias').innerText = data?.transferencias  ?? 0;
+    // Guardamos en memoria global
+    cajaActual.apertura       = data?.apertura       ?? 0;
+    cajaActual.ingresos       = data?.ingresos       ?? 0;
+    cajaActual.gastos         = data?.gastos         ?? 0;
+    cajaActual.saldo          = data?.saldo          ?? 0;
+    cajaActual.transferencias = data?.transferencias ?? 0;
+
+    document.getElementById('apertura').innerText       = cajaActual.apertura;
+    document.getElementById('ingresos').innerText       = cajaActual.ingresos;
+    document.getElementById('gastos').innerText         = cajaActual.gastos;
+    document.getElementById('saldo').innerText          = cajaActual.saldo;
+    document.getElementById('transferencias').innerText = cajaActual.transferencias;
 
     transferenciasList = construirListaTransferencias(data);
     renderDetalle(transferenciasList);
 
   } catch (e) {
     console.error('Error cargando caja:', e);
-    ['apertura','ingresos','gastos','saldo','transferencias'].forEach(id =>
-      document.getElementById(id).innerText = '0'
-    );
-    document.getElementById('detalleTransferencias').innerHTML =
-      '<i style="color:red">❌ Error de conexión</i>';
+    ['apertura','ingresos','gastos','saldo','transferencias'].forEach(id => document.getElementById(id).innerText = '0');
+    document.getElementById('detalleTransferencias').innerHTML = '<i style="color:red">❌ Error de conexión</i>';
   }
 }
 
-// ===================== ABRIR =====================
 async function abrir() {
   let monto = Number(document.getElementById('monto').value);
-  if (!monto || monto <= 0) return alert("Monto inválido");
+  if (!monto || monto <= 0) return alert("Monto inicial inválido");
 
   try {
     let res = await fetch(API + '/caja/abrir', {
@@ -570,22 +474,24 @@ async function abrir() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ monto })
     });
-    let data = await res.json();
-    alert(data.error || "Caja abierta ✔");
+    if(res.ok) {
+      let data = await res.json();
+      alert(data.error || "Caja abierta ✔");
+      document.getElementById('monto').value = "";
+      cargar();
+    } else {
+      alert("❌ No se pudo abrir la caja. Verifica si ya existe una abierta.");
+    }
   } catch {
-    alert("❌ Error conexión");
+    alert("❌ Error de red al intentar abrir la caja");
   }
-
-  document.getElementById('monto').value = "";
-  cargar();
 }
 
-// ===================== GASTO =====================
 async function registrarGasto() {
   let monto  = Number(document.getElementById('gasto').value);
   let motivo = document.getElementById('motivo').value || "Sin motivo";
 
-  if (!monto || monto <= 0) return alert("Monto inválido");
+  if (!monto || monto <= 0) return alert("Monto de gasto inválido");
 
   try {
     let res = await fetch(API + '/caja/gasto', {
@@ -593,18 +499,50 @@ async function registrarGasto() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ monto, motivo })
     });
-    let data = await res.json();
-    alert(data.error || "Gasto registrado ✔");
+    if(res.ok) {
+      let data = await res.json();
+      alert(data.error || "Gasto registrado ✔");
+      document.getElementById('gasto').value  = "";
+      document.getElementById('motivo').value = "";
+      cargar();
+    } else {
+      alert("❌ El servidor rechazó el registro del gasto");
+    }
   } catch {
     alert("❌ Error conexión");
   }
-
-  document.getElementById('gasto').value  = "";
-  document.getElementById('motivo').value = "";
-  cargar();
 }
 
-// ===================== IMPRIMIR CIERRE =====================
+async function ejecutarCierreBackend(montoReal, dejar) {
+  try {
+    let res = await fetch(API + '/caja/cerrar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ montoReal, dejar })
+    });
+    
+    if(!res.ok) throw new Error("Error en cierre");
+    let data = await res.json();
+
+    if (!data.error) {
+      // Inyectamos lo ingresado por el usuario en el objeto final por seguridad
+      data.montoReal = montoReal;
+      data.dejar = dejar;
+
+      guardarCierreEnHistorial(data);
+      renderHistorial();
+      imprimirFactura(data);
+      alert("Caja cerrada de forma exitosa ✔");
+      cargar();
+    } else {
+      alert(data.error);
+    }
+  } catch (e) {
+    console.error('Error cerrando caja:', e);
+    alert("❌ Error de comunicación con el servidor. No se cerró la sesión de caja.");
+  }
+}
+
 function imprimirFactura(data) {
   let lista = construirListaTransferencias(data);
   if (!lista.length) lista = transferenciasList || [];
@@ -624,6 +562,15 @@ function imprimirFactura(data) {
     ? data.gastosLista.map(g => `- $${g.monto} | ${g.motivo}<br>`).join('')
     : 'Sin gastos registrados';
 
+  // Fallbacks de cálculos preventivos si el endpoint reduce variables
+  const apertura = data.apertura ?? cajaActual.apertura;
+  const ingresos = data.ingresos ?? cajaActual.ingresos;
+  const gastos   = data.gastos   ?? cajaActual.gastos;
+  const trans    = data.transferencias ?? cajaActual.transferencias;
+  const esp      = data.esperado ?? (Number(apertura) + Number(ingresos) - Number(gastos));
+  const real     = data.real ?? data.montoReal ?? 0;
+  const dif      = data.diferencia ?? (Number(real) - Number(esp));
+
   let ventana = window.open("", "_blank", "width=400,height=700");
   ventana.document.write(`
     <html>
@@ -642,76 +589,40 @@ function imprimirFactura(data) {
     <body>
       <h2>📄 CIERRE DE CAJA</h2>
       <div class="linea"></div>
-      <p>Apertura:           $${data.apertura}</p>
-      <p>Ventas (efectivo):  $${data.ingresos}</p>
-      <p>Gastos:           - $${data.gastos}</p>
+      <p>Apertura:           $${apertura}</p>
+      <p>Ventas (efectivo):  $${ingresos}</p>
+      <p>Gastos:           - $${gastos}</p>
       <div class="linea"></div>
       <b>Detalle Transferencias:</b>
       <table>
         <tr>
           <th>Banco</th>
-          <th>Comprobante</th>
+          <th>Comp.</th>
           <th>Monto</th>
           <th>Motivo</th>
         </tr>
         ${transHTML}
       </table>
-      <p><b>Total Transferencias: $${data.transferencias}</b></p>
+      <p><b>Total Transferencias: $${trans}</b></p>
       <div class="linea"></div>
       <b>Detalle Gastos:</b><br>
       ${gastosHTML}
       <div class="linea"></div>
-      <p>Esperado:    $${data.esperado}</p>
-      <p>Real:        $${data.real}</p>
-      <p>Diferencia:  $${data.diferencia}</p>
+      <p>Esperado:    $${esp}</p>
+      <p>Real:        $${real}</p>
+      <p>Diferencia:  $${dif}</p>
       <div class="linea"></div>
       <p class="total">Dejado en caja: $${data.dejar ?? 0}</p>
       <div class="linea"></div>
       <p>${new Date().toLocaleString()}</p>
-      <script>window.onload = () => window.print();<\/script>
+      <script>window.onload = () => { window.print(); window.close(); }<\/script>
     </body>
     </html>
   `);
   ventana.document.close();
 }
 
-// ===================== CERRAR =====================
-async function cerrar() {
-  let montoReal = prompt("¿Cuánto dinero hay en caja? (solo efectivo)");
-  let dejar     = prompt("¿Cuánto quieres dejar en caja?");
-
-  if (!montoReal || isNaN(montoReal)) return alert("Monto inválido");
-  if (!dejar || isNaN(dejar)) dejar = 0;
-
-  try {
-    let res = await fetch(API + '/caja/cerrar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        montoReal: Number(montoReal),
-        dejar:     Number(dejar)
-      })
-    });
-    let data = await res.json();
-
-    if (!data.error) {
-      guardarCierreEnHistorial(data);
-      renderHistorial();
-      imprimirFactura(data);
-      alert("Caja cerrada ✔");
-    } else {
-      alert(data.error);
-    }
-  } catch (e) {
-    console.error('Error cerrando caja:', e);
-    alert("❌ Error conexión");
-  }
-
-  cargar();
-}
-
-// ===================== INIT =====================
-console.log('🚀 Inicializando página de caja...');
+// Inicializar componentes al arrancar la interfaz
 cargar();
 renderHistorial();
 
