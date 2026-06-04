@@ -31,40 +31,33 @@ try {
 const db = admin.firestore();
 
 // =========================================================================
-// 2. CONFIGURACIÓN DE NODEMAILER CON GMAIL (FORZANDO IPV4 PARA RENDER)
+// 2. CONFIGURACIÓN DE NODEMAILER CON BREVO SMTP (DATOS REALES)
 // =========================================================================
 let transporter = null;
-if (process.env.GMAIL_USER && process.env.GMAIL_PASS) {
+if (process.env.BREVO_SMTP_KEY) {
   transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true, // SSL directo
+    host: 'smtp-relay.brevo.com',
+    port: 587,
+    secure: false, // false porque el puerto 587 usa TLS / STARTTLS
     auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_PASS
+      user: 'ad85ef001@smtp-brevo.com', // Tu login real de Brevo
+      pass: process.env.BREVO_SMTP_KEY  // Render jalará la clave automáticamente de aquí
     },
-    // Forzamos a Node a resolver la conexión usando familias de IP tradicionales (IPv4)
-    // Esto evita el error ENETUNREACH de IPv6 en los servidores de Render
-    connectionTimeout: 10000, // 10 segundos maximo de espera
-    greetingTimeout: 10000,
-    dnsTimeout: 10000,
-    family: 4, // <-- OBLIGA A USAR IPV4
     tls: {
-      rejectUnauthorized: false
+      rejectUnauthorized: false // Previene bloqueos por DNS en los contenedores de Render
     }
   });
 
   transporter.verify((err) => {
     if (err) {
-      console.warn("⚠️ Gmail SMTP error de verificación:", err.message);
+      console.warn("⚠️ Brevo SMTP error de verificación:", err.message);
     } else {
-      console.log("📧 Gmail SMTP listo para despachar facturas a clientes.");
+      console.log("📧 Relay Brevo SMTP listo para despachar facturas a clientes.");
     }
   });
 } else {
-  console.warn("⚠️ GMAIL_USER o GMAIL_PASS no configurados. Envío de correos inhabilitado.");
+  console.warn("⚠️ BREVO_SMTP_KEY no configurado en Render. Envío de correos inhabilitado.");
 }
-
 // ── Helper: Generación dinámica del cuerpo HTML del comprobante ───────────
 function generarHTMLCorreo(datos, carrito, tipoPago) {
   const {
