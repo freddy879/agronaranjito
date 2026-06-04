@@ -33,18 +33,16 @@ const db = admin.firestore();
 // =========================================================================
 // 2. CONFIGURACIÓN DE NODEMAILER CON BREVO SMTP (DATOS REALES)
 // =========================================================================
-let transporter = null;
-if (process.env.BREVO_SMTP_KEY) {
-  transporter = nodemailer.createTransport({
+transporter = nodemailer.createTransport({
     host: 'smtp-relay.brevo.com',
-    port: 587,
-    secure: false, // false porque el puerto 587 usa TLS / STARTTLS
+    port: 465,
+    secure: true, // true para usar SSL directo en el puerto 465
     auth: {
-      user: 'ad85ef001@smtp-brevo.com', // Tu login real de Brevo
-      pass: process.env.BREVO_SMTP_KEY  // Render jalará la clave automáticamente de aquí
+      user: 'ad85ef001@smtp-brevo.com',
+      pass: process.env.BREVO_SMTP_KEY
     },
     tls: {
-      rejectUnauthorized: false // Previene bloqueos por DNS en los contenedores de Render
+      rejectUnauthorized: false
     }
   });
 
