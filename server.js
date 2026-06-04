@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
 const admin   = require('firebase-admin');
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
 const app = express();
 
@@ -31,14 +31,28 @@ try {
 const db = admin.firestore();
 
 // =========================================================================
-// 2. CONFIGURACIÓN DE RESEND (CORREOS — reemplaza Nodemailer)
+// 2. CONFIGURACIÓN DE NODEMAILER CON BREVO SMTP
 // =========================================================================
-let resend = null;
-if (process.env.RESEND_API_KEY) {
-  resend = new Resend(process.env.RESEND_API_KEY);
-  console.log("📧 Resend listo para enviar correos.");
+let transporter = null;
+if (process.env.BREVO_SMTP_KEY) {
+  transporter = nodemailer.createTransport({
+    host: "smtp-relay.brevo.com",
+    port: 587,
+    secure: false,
+    auth: {
+      user: "ad85ef001@smtp-brevo.com",
+      pass: process.env.BREVO_SMTP_KEY
+    }
+  });
+  transporter.verify((err) => {
+    if (err) {
+      console.warn("⚠️ Brevo SMTP error:", err.message);
+    } else {
+      console.log("📧 Brevo SMTP listo para enviar correos.");
+    }
+  });
 } else {
-  console.warn("⚠️ RESEND_API_KEY no configurada. Envío de correos inhabilitado.");
+  console.warn("⚠️ BREVO_SMTP_KEY no configurada. Envío de correos inhabilitado.");
 }
 
 // ── Helper: Generación dinámica del cuerpo HTML del comprobante ───────────
@@ -100,14 +114,12 @@ function generarHTMLCorreo(datos, carrito, tipoPago) {
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f6fa; padding:30px 0;">
       <tr><td align="center">
         <table width="540" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.06);">
-          <!-- Cabecera corporativa -->
           <tr>
             <td style="background-color:#ff3f34; padding:26px 30px; text-align:center;">
               <h1 style="margin:0; color:#ffffff; font-size:24px; letter-spacing:1px; font-weight:700;">AGRO NARANJITO #1</h1>
               <p style="margin:4px 0 0; color:rgba(255,255,255,0.85); font-size:13px;">Comprobante Digital de Venta · ${fecha}</p>
             </td>
           </tr>
-          <!-- Información de la Factura -->
           <tr>
             <td style="padding:24px 30px 10px;">
               <p style="margin:0 0 4px; font-size:12px; color:#888; text-transform:uppercase; letter-spacing:.5px;">Titular del Documento</p>
@@ -116,7 +128,6 @@ function generarHTMLCorreo(datos, carrito, tipoPago) {
               <span style="display:inline-block; margin-top:10px; padding:4px 14px; background-color:${tipoBadgeColor}; color:#ffffff; border-radius:20px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.3px;">${tipoPago}</span>
             </td>
           </tr>
-          <!-- Desglose de Productos -->
           <tr>
             <td style="padding:15px 30px;">
               <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:5px;">
@@ -132,7 +143,6 @@ function generarHTMLCorreo(datos, carrito, tipoPago) {
               </table>
             </td>
           </tr>
-          <!-- Bloque de liquidación económica -->
           <tr>
             <td style="padding:10px 30px 25px;">
               <table width="100%" cellpadding="0" cellspacing="0">
@@ -148,7 +158,6 @@ function generarHTMLCorreo(datos, carrito, tipoPago) {
               </table>
             </td>
           </tr>
-          <!-- Pie informativo -->
           <tr>
             <td style="background-color:#f8f9fa; padding:20px 30px; text-align:center; border-top:1px solid #f0f0f0;">
               <p style="margin:0; font-size:14px; color:#2c3e50; font-weight:500;">¡Gracias por depositar su confianza en nosotros! 😊</p>
@@ -163,7 +172,6 @@ function generarHTMLCorreo(datos, carrito, tipoPago) {
   `;
 }
 
-// Helper para extracción limpia de colecciones estructuradas
 const mapearDocs = (snapshot) => {
   const docs = [];
   snapshot.forEach(doc => docs.push({ _id: doc.id, ...doc.data() }));
@@ -171,15 +179,13 @@ const mapearDocs = (snapshot) => {
 };
 
 // =========================================================================
-// 3. ENDPOINTS API REST RESTFUL
+// 3. ENDPOINTS API REST
 // =========================================================================
 
-// --- HEALTH VERIFICATION ---
 app.get('/health', (req, res) => {
   res.json({ ok: true, message: "NEXUS Core Engine activo", time: new Date() });
 });
 
-// --- ENPOINTS: MÓDULO PRODUCTOS / BODEGA ---
 app.get('/productos', async (req, res) => {
   try {
     const snapshot = await db.collection('productos').get();
@@ -245,7 +251,6 @@ app.delete('/productos/:id', async (req, res) => {
   }
 });
 
-// --- ENDPOINTS: MÓDULO CLIENTES ---
 app.post('/clientes', async (req, res) => {
   try {
     const nuevoCliente = {
@@ -339,8 +344,7 @@ app.delete('/clientes/:id', async (req, res) => {
   }
 });
 
-// --- ENDPOINTS: MÓDULO VENTAS & FACTURACIÓN DIGITAL ---
-
+// --- CORREO ---
 app.post('/correo/factura', async (req, res) => {
   console.log("📨 Petición entrante POST /correo/factura para:", req.body?.correo);
   const { correo, datos, carrito, tipoPago } = req.body;
@@ -348,33 +352,25 @@ app.post('/correo/factura', async (req, res) => {
   if (!correo) {
     return res.status(400).json({ error: "La dirección de correo destinataria es obligatoria." });
   }
-  if (!resend) {
-    return res.status(503).json({ error: "El servicio de correo no está configurado. Falta RESEND_API_KEY." });
+  if (!transporter) {
+    return res.status(503).json({ error: "El servicio SMTP no está configurado. Falta BREVO_SMTP_KEY." });
   }
 
   try {
     const htmlFactura = generarHTMLCorreo(datos, carrito, tipoPago);
     const subject     = `🧾 Comprobante Digital — ${datos?.cliente || "Cliente"} · Total: $${Number(datos?.totalFinal || 0).toFixed(2)}`;
-    
-    const { error } = await resend.emails.send({
-      from: "Agro Naranjito #1 <onboarding@resend.dev>",
-      to: "fdominguezq@unemi.edu.ec",
-      reply_to: correo,
+
+    await transporter.sendMail({
+      from: '"Agro Naranjito #1" <ad85ef001@smtp-brevo.com>',
+      to:      correo,
       subject,
-      html: htmlFactura
+      html:    htmlFactura
     });
-
- 
-
-    if (error) {
-      console.error("❌ Resend error:", error);
-      return res.status(500).json({ error: "Fallo al enviar correo.", detalle: error.message });
-    }
 
     console.log(`📧 Factura despachada con éxito a: ${correo}`);
     res.json({ ok: true, mensaje: `Correo enviado satisfactoriamente a ${correo}` });
   } catch (err) {
-    console.error("❌ Error crítico en Resend:", err.message);
+    console.error("❌ Error crítico en Brevo SMTP:", err.message);
     res.status(500).json({ error: "Fallo crítico al despachar correo electrónico.", detalle: err.message });
   }
 });
@@ -388,7 +384,6 @@ app.post('/ventas', async (req, res) => {
 
     await db.collection('ventas').add(nuevaVenta);
 
-    // Conciliación con Flujos de Caja Abierta
     const cajasSnapshot = await db.collection('cajas').where('activa', '==', true).get();
     if (!cajasSnapshot.empty) {
       const cajaRef = cajasSnapshot.docs[0].ref;
@@ -453,7 +448,7 @@ app.delete('/ventas/producto/:ventaId/:indice', async (req, res) => {
 
     if (venta.productos.length === 0) {
       await docRef.delete();
-      return res.json({ msg: "Transacción purgada en su totalidad (Remoción total de items)" });
+      return res.json({ msg: "Transacción purgada en su totalidad" });
     } else {
       venta.total = venta.productos.reduce((sum, p) => sum + (Number(p.precio || 0) * Number(p.amount || p.cantidad || 1)), 0);
       await docRef.update({ productos: venta.productos, total: venta.total });
@@ -487,7 +482,6 @@ app.delete('/ventas/dia', async (req, res) => {
   }
 });
 
-// --- ENDPOINTS: GESTIÓN DE CRÉDITO Y DEUDAS ---
 app.get('/deudas', async (req, res) => {
   try {
     const snapshot = await db.collection('deudas').orderBy('fecha', 'desc').get();
@@ -603,7 +597,6 @@ app.delete('/deudas/:id', async (req, res) => {
   }
 });
 
-// --- ENDPOINTS: GESTIÓN DE CONTROL DE FLUIDO EN CAJA ---
 app.post('/caja/abrir', async (req, res) => {
   try {
     const monto = Number(req.body.monto);
@@ -706,7 +699,7 @@ app.post('/caja/cerrar', async (req, res) => {
     const caja   = snapshot.docs[0].data();
     const real   = Number(req.body.montoReal);
     const dejar  = Number(req.body.dejar || 0);
-    const esperado  = caja.apertura + caja.ingresos - caja.gastos;
+    const esperado   = caja.apertura + caja.ingresos - caja.gastos;
     const diferencia = real - esperado;
 
     let transferencias = 0;
@@ -768,7 +761,6 @@ app.get('/caja/historial', async (req, res) => {
   }
 });
 
-// --- ENDPOINT: MÓDULO INTELIGENCIA DE NEGOCIO / ANÁLISIS ---
 app.get('/analisis', async (req, res) => {
   try {
     const snapshot = await db.collection('ventas').get();
@@ -819,7 +811,7 @@ app.get('/analisis', async (req, res) => {
 });
 
 // =========================================================================
-// 4. INICIALIZACIÓN DE ESCUCHA INTERNA (BIND GLOBAL PARA CLOUD HOSTING)
+// 4. INICIALIZACIÓN
 // =========================================================================
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
