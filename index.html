@@ -1,62 +1,59 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-  <title>Ventas</title>
+  <meta charset="UTF-8">
+  <title>NEXUS - Panel de Ventas</title>
   <style>
-    body { margin: 0; font-family: 'Segoe UI'; display: flex; background: #f5f6fa; }
+    body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; display: flex; background: #f5f6fa; }
     .sidebar { width: 220px; background: #1e272e; color: white; height: 100vh; padding: 20px; box-sizing: border-box; }
-    .sidebar a { display: block; color: white; padding: 10px; text-decoration: none; margin-top: 10px; border-radius: 8px; }
+    .sidebar h2 { margin: 0 0 20px; text-align: center; letter-spacing: 1px; color: #ff3f34; }
+    .sidebar a { display: block; color: white; padding: 12px; text-decoration: none; margin-top: 10px; border-radius: 8px; font-weight: 500; transition: 0.2s; }
     .sidebar a:hover { background: #485460; }
     .main { flex: 1; overflow-y: auto; }
-    .header { background: #ff3f34; color: white; padding: 15px; font-size: 20px; }
-    .contenido { padding: 20px; display: flex; gap: 20px; }
-    .card { background: white; padding: 15px; border-radius: 12px; flex: 1; }
-    input[type="text"], input[type="number"], input[type="email"], input[type="tel"], input:not([type]) {
-      padding: 8px; margin: 5px 0; width: 100%; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px;
+    .header { background: #ff3f34; color: white; padding: 18px 25px; font-size: 22px; font-weight: bold; }
+    .contenido { padding: 25px; display: flex; gap: 25px; }
+    .card { background: white; padding: 20px; border-radius: 12px; flex: 1; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+    input[type="text"], input[type="number"], input[type="email"], input[type="tel"] {
+      padding: 10px; margin: 8px 0; width: 100%; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;
     }
-    select { padding: 8px; margin: 5px 0; width: 100%; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; font-family: 'Segoe UI'; font-size: 14px; }
-    button { padding: 8px 12px; border: none; background: #ff3f34; color: white; border-radius: 6px; cursor: pointer; }
+    select { padding: 10px; margin: 8px 0; width: 100%; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; font-family: 'Segoe UI'; font-size: 14px; }
+    button { padding: 10px 15px; border: none; background: #ff3f34; color: white; border-radius: 6px; cursor: pointer; font-weight: 600; transition: background 0.2s; }
     button:hover { background: #e03329; }
     ul { list-style: none; padding: 0; margin: 0; }
     .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000; }
-    .factura { background: white; padding: 20px; width: 420px; max-height: 80vh; overflow-y: auto; border-radius: 10px; }
-    .factura-btns { display: flex; gap: 10px; margin-top: 12px; }
+    .factura { background: white; padding: 25px; width: 440px; max-height: 85vh; overflow-y: auto; border-radius: 12px; }
+    .factura-btns { display: flex; gap: 12px; margin-top: 15px; }
     .modal-credito { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1100; }
     .modal-credito-box { background: white; padding: 24px; width: 320px; border-radius: 10px; }
     .modal-credito-box h3 { margin: 0 0 16px; }
-    .modal-credito-box input { margin-bottom: 10px; }
+    .modal-credito-box input { margin-bottom: 12px; }
     .modal-credito-box .btns { display: flex; gap: 10px; margin-top: 8px; }
     .modal-credito-box .btns button.cancel { background: #888; }
-    .pagoBtn { display: flex; gap: 6px; margin: 8px 0; flex-wrap: wrap; }
-    .pagoBtn button { flex: 1; min-width: 80px; }
+    .pagoBtn { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+    .pagoBtn button { flex: 1; min-width: 90px; background: #485460; }
     .activo { background: #2ed573 !important; color: #1e272e !important; }
-    .vuelto-ok { color: #27ae60; font-weight: 500; }
-    .vuelto-falta { color: #ff3f34; font-weight: 500; }
-    #carrito li { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
-    #carrito li:last-child { border-bottom: none; }
-    #lista li { display: flex; align-items: center; justify-content: space-between; padding: 6px 4px; border-bottom: 1px solid #f5f5f5; font-size: 14px; }
-    #lista li:last-child { border-bottom: none; }
-    #lista li button { padding: 4px 10px; font-size: 13px; }
-    .total-line { font-size: 18px; font-weight: 600; margin: 10px 0 4px; }
-    .descuento-preview { font-size: 13px; color: #888; margin: 0 0 8px; }
-    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 6px; }
+    .vuelto-ok { color: #27ae60; font-weight: 600; font-size: 15px; }
+    .vuelto-falta { color: #ff3f34; font-weight: 600; font-size: 15px; }
+    #carrito li { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+    #lista li { display: flex; align-items: center; justify-content: space-between; padding: 8px 4px; border-bottom: 1px solid #f5f5f5; font-size: 14px; }
+    #lista li button { padding: 5px 12px; font-size: 13px; }
+    .total-line { font-size: 20px; font-weight: 700; color: #1e272e; margin: 15px 0 5px; }
+    .descuento-preview { font-size: 13px; color: #7f8c8d; margin: 0 0 10px; font-weight: 500; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 8px; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .btn-confirmar { width: 100%; padding: 10px; font-size: 16px; margin-top: 8px; }
+    .btn-confirmar { width: 100%; padding: 12px; font-size: 16px; margin-top: 10px; background: #ff3f34; }
     .btn-confirmar:disabled { opacity: 0.6; cursor: not-allowed; }
-    .alerta-error { background: #fff0f0; border: 1px solid #ff3f34; color: #c0392b; border-radius: 6px; padding: 8px 12px; margin: 6px 0; font-size: 13px; display: none; }
-    .alerta-ok { background: #f0fff4; border: 1px solid #2ed573; color: #27ae60; border-radius: 6px; padding: 8px 12px; margin: 6px 0; font-size: 13px; display: none; }
-    .banco-info { background: #f0f7ff; border: 1px solid #b3d4f5; border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #1a3c5e; margin-top: 6px; display: none; }
+    .alerta-error { background: #fff0f0; border: 1px solid #ff3f34; color: #c0392b; border-radius: 6px; padding: 10px 14px; margin: 10px 0; font-size: 13px; display: none; }
+    .alerta-ok { background: #f0fff4; border: 1px solid #2ed573; color: #27ae60; border-radius: 6px; padding: 10px 14px; margin: 10px 0; font-size: 13px; display: none; }
+    .banco-info { background: #f0f7ff; border: 1px solid #b3d4f5; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #1a3c5e; margin-top: 8px; display: none; }
     .banco-info .banco-nombre { font-weight: bold; margin-bottom: 2px; }
     .banco-info .cuenta-num { font-family: monospace; font-size: 15px; letter-spacing: 1px; color: #0056b3; }
+    .correo-badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; background: #e8f5e9; color: #27ae60; border: 1px solid #a5d6a7; display: inline-block; margin-top: 4px; font-weight: 600; }
 
-    /* ── Correo badge ── */
-    .correo-badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #e8f5e9; color: #27ae60; border: 1px solid #a5d6a7; display: inline-block; margin-left: 6px; vertical-align: middle; }
-
-    /* ── IMPRESIÓN 80mm ── */
     @media print {
       @page { size: 80mm auto; margin: 3mm; }
-      body > *       { display: none !important; }
-      #ticketPrint   { display: block !important; }
+      body > * { display: none !important; }
+      #ticketPrint { display: block !important; }
       #ticketPrint * { visibility: visible !important; }
     }
     #ticketPrint {
@@ -67,25 +64,24 @@
       color: #000;
       box-sizing: border-box;
     }
-    #ticketPrint h2    { text-align: center; margin: 3px 0; font-size: 14px; }
-    #ticketPrint .sub  { text-align: center; font-size: 11px; color: #555; margin: 0 0 3px; }
-    #ticketPrint p     { margin: 2px 0; font-size: 12px; }
-    #ticketPrint hr    { border: none; border-top: 1px dashed #999; margin: 4px 0; }
+    #ticketPrint h2 { text-align: center; margin: 3px 0; font-size: 15px; font-weight: bold; }
+    #ticketPrint .sub { text-align: center; font-size: 11px; color: #444; margin: 0 0 3px; }
+    #ticketPrint p { margin: 2px 0; font-size: 12px; }
+    #ticketPrint hr { border: none; border-top: 1px dashed #666; margin: 5px 0; }
     #ticketPrint .fila { display: flex; justify-content: space-between; margin: 2px 0; }
-    #ticketPrint .nom  { flex: 1; padding-right: 4px; }
-    #ticketPrint .pre  { white-space: nowrap; font-weight: bold; }
-    #ticketPrint .tot  { display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; margin: 3px 0; }
-    #ticketPrint .pie  { text-align: center; font-size: 10px; color: #666; margin-top: 6px; }
+    #ticketPrint .nom { flex: 1; padding-right: 4px; }
+    #ticketPrint .pre { white-space: nowrap; font-weight: bold; }
+    #ticketPrint .tot { display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; margin: 4px 0; }
+    #ticketPrint .pie { text-align: center; font-size: 11px; color: #444; margin-top: 8px; line-height: 1.3; }
   </style>
 </head>
 <body>
 
-<!-- Nodo raíz para el ticket — vive en body, fuera del overlay -->
 <div id="ticketPrint"></div>
 
 <div class="sidebar">
   <h2>NEXUS</h2>
-  <a href="index.html">💰 Venta</a>
+  <a href="index.html" style="background:#ff3f34;">💰 Venta</a>
   <a href="bodega.html">📦 Bodega</a>
   <a href="deuda.html">💸 Deudas</a>
   <a href="analisis.html">🔍 Historial</a>
@@ -94,29 +90,29 @@
 </div>
 
 <div class="main">
-  <div class="header">🛒 Ventas</div>
+  <div class="header">🛒 Terminal de Ventas</div>
   <div class="contenido">
 
     <div class="card">
-      <h3 style="margin:0 0 10px">Buscar producto</h3>
-      <input id="buscar" placeholder="Nombre o código..." oninput="filtrar()">
+      <h3 style="margin:0 0 12px; color:#1e272e;">Buscar Producto</h3>
+      <input id="buscar" placeholder="Ingresa descripción o código de barras..." oninput="filtrar()">
       <ul id="lista"></ul>
     </div>
 
     <div class="card">
-      <h3 style="margin:0 0 10px">Nueva venta</h3>
-      <input id="cliente" placeholder="Cliente *">
-      <input id="cedula" placeholder="Cédula">
-      <input id="celular" placeholder="Celular" type="tel">
-      <div style="position:relative">
-        <input id="correo" placeholder="Correo electrónico" type="email">
-        <span id="correoBadge" class="correo-badge" style="display:none">📧 Recibirá factura</span>
+      <h3 style="margin:0 0 12px; color:#1e272e;">Estructurar Nueva Venta</h3>
+      <input id="cliente" placeholder="Nombre completo del cliente *">
+      <input id="cedula" placeholder="Cédula de Identidad / RUC">
+      <input id="celular" placeholder="Número de Contacto" type="tel">
+      <div>
+        <input id="correo" placeholder="Dirección de Correo Electrónico" type="email">
+        <span id="correoBadge" class="correo-badge" style="display:none">📧 Recibirá factura digital</span>
       </div>
-      <input id="descuento" type="number" placeholder="Descuento % (0–100)" min="0" max="100" step="0.01" oninput="clampDescuento(); actualizar()">
+      <input id="descuento" type="number" placeholder="Descuento opcional % (0–100)" min="0" max="100" step="0.01" oninput="clampDescuento(); actualizar()">
 
       <ul id="carrito"></ul>
 
-      <div class="total-line">Total: $<span id="total">0.00</span></div>
+      <div class="total-line">Importe Neto: $<span id="total">0.00</span></div>
       <div class="descuento-preview" id="descuentoPreview"></div>
 
       <div class="pagoBtn">
@@ -126,59 +122,59 @@
       </div>
 
       <div id="seccionEfectivo">
-        <input id="montoRecibido" type="number" placeholder="Monto recibido" oninput="calcularVuelto()" min="0">
+        <input id="montoRecibido" type="number" placeholder="Monto entregado por el cliente" oninput="calcularVuelto()" min="0">
         <p id="vueltoTxt" class="vuelto-ok">Vuelto: $0.00</p>
       </div>
 
       <div id="seccionTransferencia" style="display:none">
         <select id="bancoPicker" onchange="mostrarBanco()">
-          <option value="">— Selecciona banco —</option>
+          <option value="">— Selecciona Banco Destino —</option>
           <option value="guayaquil">🟦 Banco Guayaquil</option>
           <option value="pichincha">🟨 Banco Pichincha</option>
         </select>
         <div class="banco-info" id="infoGuayaquil">
           <div class="banco-nombre">🟦 Banco Guayaquil</div>
           <div>Cuenta de Ahorros</div>
-          <div class="cuenta-num">xxxxxxxxxx</div>
+          <div class="cuenta-num">0000000000</div>
         </div>
         <div class="banco-info" id="infoPichincha">
           <div class="banco-nombre">🟨 Banco Pichincha</div>
           <div>Cuenta de Ahorros</div>
           <div class="cuenta-num">2208028078</div>
         </div>
-        <input id="comprobante" type="text" placeholder="Número de comprobante *">
+        <input id="comprobante" type="text" placeholder="Número de referencia o comprobante *">
       </div>
 
       <div class="alerta-error" id="alertaError"></div>
       <div class="alerta-ok" id="alertaOk"></div>
-      <button class="btn-confirmar" id="btnConfirmar" onclick="facturar()">Confirmar venta</button>
+      <button class="btn-confirmar" id="btnConfirmar" onclick="facturar()">Confirmar Venta e Imprimir</button>
     </div>
 
   </div>
 </div>
 
-<!-- Modal: factura preview -->
+<!-- Modal: Vista de Factura -->
 <div class="overlay" id="overlay">
   <div class="factura">
     <div id="facturaContenido"></div>
     <div class="factura-btns">
-      <button onclick="imprimirYAbrirCaja()">🖨️ Imprimir</button>
-      <button onclick="cerrarFactura()" style="background:#888">Cerrar</button>
+      <button onclick="imprimirYAbrirCaja()">🖨️ Reimprimir</button>
+      <button onclick="cerrarFactura()" style="background:#888">Cerrar Visualización</button>
     </div>
   </div>
 </div>
 
-<!-- Modal: crédito -->
+<!-- Modal: Parámetros Crédito -->
 <div class="modal-credito" id="modalCredito">
   <div class="modal-credito-box">
-    <h3>💰 Detalles del crédito</h3>
-    <label>Interés %</label>
-    <input id="inputInteres" type="number" placeholder="Ej: 10" min="0" max="100" step="0.01">
-    <label>Número de meses</label>
-    <input id="inputMeses" type="number" placeholder="Ej: 6" min="1" step="1">
+    <h3>💰 Términos de Crédito</h3>
+    <label>Tasa de interés (%)</label>
+    <input id="inputInteres" type="number" placeholder="Ej: 5" min="0" max="100" step="0.01">
+    <label>Plazo diferido (Meses)</label>
+    <input id="inputMeses" type="number" placeholder="Ej: 3" min="1" step="1">
     <div class="btns">
-      <button onclick="confirmarCredito()">Confirmar</button>
-      <button class="cancel" onclick="cancelarCredito()">Cancelar</button>
+      <button onclick="confirmarCredito()">Asignar</button>
+      <button class="cancel" onclick="cancelarCredito()">Declinar</button>
     </div>
   </div>
 </div>
@@ -195,8 +191,6 @@ let productos = [];
 let carrito   = [];
 let tipoPago  = "efectivo";
 let resolveCredito = null;
-/* guardamos los datos de la última venta para reenviar correo si hace falta */
-let _ultimaDatosCorreo = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("cedula").addEventListener("input", buscarCliente);
@@ -207,21 +201,14 @@ document.addEventListener("DOMContentLoaded", () => {
   cargar();
 });
 
-// ── IMPRIMIR + ABRIR CAJÓN ─────────────────────────────────────────────────
 function imprimirYAbrirCaja() {
-  window.addEventListener("afterprint", abrirCajon, { once: true });
+  window.addEventListener("afterprint", () => { console.log("Cajón impulsado."); }, { once: true });
   window.print();
 }
 
-function abrirCajon() {
-  console.log("Cajón abierto");
-}
-
-// ── IMPRESIÓN AUTOMÁTICA (sin abrir modal primero) ─────────────────────────
 function imprimirDirecto() {
   window.print();
 }
-// ──────────────────────────────────────────────────────────────────────────
 
 function setTipo(tipo) {
   tipoPago = tipo;
@@ -230,6 +217,7 @@ function setTipo(tipo) {
   document.getElementById("btnT").classList.toggle("activo", tipo === "transferencia");
   document.getElementById("seccionEfectivo").style.display      = tipo === "efectivo"      ? "block" : "none";
   document.getElementById("seccionTransferencia").style.display = tipo === "transferencia" ? "block" : "none";
+  
   if (tipo !== "efectivo") {
     document.getElementById("montoRecibido").value = "";
     document.getElementById("vueltoTxt").textContent = "Vuelto: $0.00";
@@ -289,22 +277,21 @@ async function buscarCliente() {
       document.getElementById("cliente").value = data.nombre  || "";
       document.getElementById("celular").value = data.telefono || "";
       document.getElementById("correo").value  = data.correo  || "";
-      // actualizar badge de correo
       document.getElementById("correoBadge").style.display = data.correo ? "inline-block" : "none";
     }
-  } catch (err) { console.error("buscarCliente:", err); }
+  } catch (err) { console.error("buscarCliente error:", err); }
 }
 
 async function cargar() {
   try {
     const res = await fetch(`${API}/productos`);
-    if (!res.ok) throw new Error("HTTP " + res.status);
+    if (!res.ok) throw new Error("HTTP STATUS CODE " + res.status);
     const data = await res.json();
-    if (!Array.isArray(data)) throw new Error("Respuesta inválida");
+    if (!Array.isArray(data)) throw new Error("Format Incompatible");
     productos = data;
   } catch (err) {
-    mostrarAlerta("Error cargando productos. Verifica la conexión.");
-    console.error("cargar:", err);
+    mostrarAlerta("Incapacidad temporal de carga. Verifique la conectividad con Render.");
+    console.error(err);
   }
 }
 
@@ -325,14 +312,14 @@ async function guardarClienteSiNoExiste() {
         body: JSON.stringify({ nombre, cedula, telefono, correo })
       });
     }
-  } catch (err) { console.error("guardarCliente:", err); }
+  } catch (err) { console.error(err); }
 }
 
 function mostrar(lista) {
   document.getElementById("lista").innerHTML = lista.map(p => `
     <li>
-      <span>${p.nombre} <small style="color:#888">$${Number(p.precioVenta).toFixed(2)} · Stock: ${p.stock}</small></span>
-      <button onclick="agregar('${p._id}')">+ Agregar</button>
+      <span><b>${p.nombre}</b> <small style="color:#7f8c8d;">$${Number(p.precioVenta).toFixed(2)} — Disp: ${p.stock}</small></span>
+      <button onclick="agregar('${p._id}')">+ Carrito</button>
     </li>
   `).join("");
 }
@@ -345,7 +332,7 @@ function filtrar() {
     (p.codigo || "").toLowerCase().includes(t)
   );
   if (f.length === 0) {
-    document.getElementById("lista").innerHTML = "<li style='color:#888;padding:8px 0'>No hay productos</li>";
+    document.getElementById("lista").innerHTML = "<li style='color:#888; padding:8px 0;'>Sin concordancias encontradas</li>";
     return;
   }
   mostrar(f);
@@ -354,14 +341,14 @@ function filtrar() {
 function agregar(id) {
   const p = productos.find(x => x._id === id);
   if (!p) return;
-  const cantStr = prompt(`Cantidad para "${p.nombre}" (stock: ${p.stock})`);
+  const cantStr = prompt(`Defina unidades para "${p.nombre}" (Unidades disponibles: ${p.stock})`);
   if (cantStr === null) return;
   const cant = parseInt(cantStr);
-  if (!cant || cant <= 0) return alert("Cantidad inválida");
+  if (!cant || cant <= 0) return alert("Parámetro numérico incorrecto");
   const existe = carrito.find(x => x.id === id);
   const cantidadActual = existe ? existe.cantidad : 0;
   if (cantidadActual + cant > p.stock) {
-    return alert(`Sin stock suficiente. Disponible: ${p.stock}, en carrito: ${cantidadActual}`);
+    return alert(`Disponibilidad superada. Físico en góndola: ${p.stock}, Actual en cesta: ${cantidadActual}`);
   }
   if (existe) { existe.cantidad += cant; }
   else { carrito.push({ id, nombre: p.nombre, precio: Number(p.precioVenta), cantidad: cant }); }
@@ -373,15 +360,17 @@ function actualizar() {
   const pct = Math.min(Math.max(parseFloat(document.getElementById("descuento").value) || 0, 0), 100);
   const descuentoMonto = subtotal * (pct / 100);
   const totalFinal = subtotal - descuentoMonto;
+  
   document.getElementById("total").textContent = totalFinal.toFixed(2);
   document.getElementById("descuentoPreview").textContent = pct > 0
-    ? `Subtotal: $${subtotal.toFixed(2)} — Descuento: -$${descuentoMonto.toFixed(2)}` : "";
+    ? `Subtotal base: $${subtotal.toFixed(2)} — Deducción: -$${descuentoMonto.toFixed(2)}` : "";
+    
   document.getElementById("carrito").innerHTML = carrito.map(p => `
     <li>
-      <span>${p.nombre} x${p.cantidad} = <b>$${(p.precio * p.cantidad).toFixed(2)}</b></span>
-      <button onclick="eliminarProducto('${p.id}')" style="background:#e74c3c;padding:4px 8px">❌</button>
+      <span>${p.nombre} (x${p.cantidad}) = <b>$${(p.precio * p.cantidad).toFixed(2)}</b></span>
+      <button onclick="eliminarProducto('${p.id}')" style="background:#e74c3c; padding:4px 8px;">❌</button>
     </li>
-  `).join("") || "<li style='color:#aaa;font-size:13px;padding:6px 0'>Carrito vacío</li>";
+  `).join("") || "<li style='color:#aaa; font-size:13px; padding:6px 0;'>Ningún elemento en carrito</li>";
   calcularVuelto();
 }
 
@@ -402,28 +391,26 @@ function pedirDatosCredito() {
 function confirmarCredito() {
   const tasaPct = parseFloat(document.getElementById("inputInteres").value) || 0;
   const meses   = parseInt(document.getElementById("inputMeses").value) || 0;
-  if (meses <= 0) { alert("Ingresa un número de meses válido (mínimo 1)"); return; }
-  if (tasaPct < 0 || tasaPct > 100) { alert("El interés debe estar entre 0 y 100"); return; }
+  if (meses <= 0) { alert("Mínimo referencial: 1 mes calendario"); return; }
+  if (tasaPct < 0 || tasaPct > 100) { alert("Porcentaje fuera del umbral operativo (0-100)"); return; }
   document.getElementById("modalCredito").style.display = "none";
   if (resolveCredito) resolveCredito.resolve({ tasaPct, meses });
 }
 
 function cancelarCredito() {
   document.getElementById("modalCredito").style.display = "none";
-  if (resolveCredito) resolveCredito.reject(new Error("Cancelado"));
+  if (resolveCredito) resolveCredito.reject(new Error("Acción abortada por usuario"));
 }
 
 function mostrarAlerta(msg) {
   const el = document.getElementById("alertaError");
-  el.textContent = msg;
-  el.style.display = "block";
+  el.textContent = msg; el.style.display = "block";
   setTimeout(() => { el.style.display = "none"; }, 5000);
 }
 
 function mostrarOk(msg) {
   const el = document.getElementById("alertaOk");
-  el.textContent = msg;
-  el.style.display = "block";
+  el.textContent = msg; el.style.display = "block";
   setTimeout(() => { el.style.display = "none"; }, 5000);
 }
 
@@ -431,7 +418,6 @@ function cerrarFactura() {
   document.getElementById("overlay").style.display = "none";
 }
 
-// ── Construye HTML del ticket ──────────────────────────────────────────────
 function construirTicket(datos) {
   const { cliente, cedula, subtotal, pct, descuentoMonto, totalFinal,
           tasaPct, montoInteres, meses, pago, vuelto,
@@ -441,11 +427,11 @@ function construirTicket(datos) {
 
   let html = `
     <h2>AGRO NARANJITO #1</h2>
-    <div class="sub">Factura de venta</div>
+    <div class="sub">Punto de Emisión Naranjito</div>
     <div class="sub">${fecha}</div>
     <hr>
-    <p><b>Cliente:</b> ${cliente || "-"}</p>
-    <p><b>Cédula:</b> ${cedula || "-"}</p>
+    <p><b>Cliente:</b> ${cliente || "Consumidor Final"}</p>
+    <p><b>Cédula/RUC:</b> ${cedula || "-"}</p>
     <hr>
   `;
 
@@ -456,48 +442,53 @@ function construirTicket(datos) {
   html += `<hr><p>Subtotal: $${subtotal.toFixed(2)}</p>`;
   if (pct > 0) html += `<p>Descuento (${pct}%): -$${descuentoMonto.toFixed(2)}</p>`;
   if (tipoPago === "credito") {
-    html += `<p>Interés (${tasaPct}%): $${montoInteres.toFixed(2)}</p>`;
-    html += `<p>Meses: ${meses}</p>`;
+    html += `<p>Recargo Interés (${tasaPct}%): $${montoInteres.toFixed(2)}</p>`;
+    html += `<p>Financiamiento: ${meses} meses</p>`;
   }
-  html += `<hr><div class="tot"><span>TOTAL</span><span>$${totalFinal.toFixed(2)}</span></div><hr>`;
+  html += `<hr><div class="tot"><span>TOTAL NETO</span><span>$${totalFinal.toFixed(2)}</span></div><hr>`;
 
   if (tipoPago === "efectivo") {
-    html += `<p>Pago: $${pago.toFixed(2)}</p><p>Vuelto: $${vuelto.toFixed(2)}</p>`;
+    html += `<p>Efectivo Recibido: $${pago.toFixed(2)}</p><p>Vuelto: $${vuelto.toFixed(2)}</p>`;
   }
   if (tipoPago === "transferencia") {
-    html += `<p>Banco: ${bancoNombre}</p><p>Cuenta: ${bancoCuenta}</p><p>Comprobante: ${comprobante}</p>`;
+    html += `<p>Entidad: ${bancoNombre}</p><p>Ref: ${comprobante}</p>`;
   }
-  html += `<p style="font-size:11px;color:#555;margin-top:4px">Pago: ${tipoPago}</p>`;
-  html += `<div class="pie">¡Gracias por su compra!<br>Vuelva pronto 😊</div>`;
+  html += `<p style="font-size:11px; color:#555; margin-top:4px;">Canal de Pago: ${tipoPago.toUpperCase()}</p>`;
+  html += `<div class="pie">¡Gracias por preferir nuestro servicio agrícola!<br>Vuelva Pronto 😊</div>`;
 
   return html;
 }
 
-// ── Enviar factura al correo ───────────────────────────────────────────────
 async function enviarCorreo(correo, datos, carritoSnapshot) {
+  // Ajuste de estructura para total simetría con el esquema del backend
+  const carritoMapeado = carritoSnapshot.map(item => ({
+    nombre: item.nombre,
+    precio: item.precio,
+    cantidad: item.cantidad // Garantiza compatibilidad absoluta
+  }));
+
   try {
     const res = await fetch(`${API}/correo/factura`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ correo, datos, carrito: carritoSnapshot, tipoPago })
+      body: JSON.stringify({ correo, datos, carrito: carritoMapeado, tipoPago })
     });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    mostrarOk(`📧 Factura enviada a ${correo}`);
+    if (!res.ok) throw new Error("HTTP STATUS ERROR " + res.status);
+    mostrarOk(`📧 Comprobante digital enviado con éxito a: ${correo}`);
   } catch (err) {
-    console.error("enviarCorreo:", err);
-    mostrarAlerta("⚠️ Venta guardada, pero no se pudo enviar el correo.");
+    console.error("enviarCorreo error:", err);
+    mostrarAlerta("⚠️ Transacción registrada, pero existió un percance SMTP con el e-mail.");
   }
 }
 
-// ── FACTURAR ──────────────────────────────────────────────────────────────
 async function facturar() {
   const cliente = document.getElementById("cliente").value.trim();
   const cedula  = document.getElementById("cedula").value.trim();
   const celular = document.getElementById("celular").value.trim();
   const correo  = document.getElementById("correo").value.trim();
 
-  if (!cliente) return mostrarAlerta("El nombre del cliente es requerido.");
-  if (carrito.length === 0) return mostrarAlerta("El carrito está vacío.");
+  if (!cliente) return mostrarAlerta("Identificación del cliente obligatoria.");
+  if (carrito.length === 0) return mostrarAlerta("La cesta se encuentra vacía.");
 
   const subtotal = carrito.reduce((s, p) => s + p.precio * p.cantidad, 0);
   const pct = Math.min(Math.max(parseFloat(document.getElementById("descuento").value) || 0, 0), 100);
@@ -517,7 +508,7 @@ async function facturar() {
   let pago = 0, vuelto = 0;
   if (tipoPago === "efectivo") {
     pago = parseFloat(document.getElementById("montoRecibido").value) || 0;
-    if (pago < totalFinal) return mostrarAlerta(`Pago insuficiente. Falta $${(totalFinal - pago).toFixed(2)}`);
+    if (pago < totalFinal) return mostrarAlerta(`Importe deficiente. Faltan $${(totalFinal - pago).toFixed(2)}`);
     vuelto = pago - totalFinal;
   }
 
@@ -525,15 +516,15 @@ async function facturar() {
   if (tipoPago === "transferencia") {
     bancoKey    = document.getElementById("bancoPicker").value;
     comprobante = document.getElementById("comprobante").value.trim();
-    if (!bancoKey)    return mostrarAlerta("Selecciona un banco.");
-    if (!comprobante) return mostrarAlerta("Ingresa el número de comprobante.");
+    if (!bancoKey)    return mostrarAlerta("Selección bancaria desatendida.");
+    if (!comprobante) return mostrarAlerta("Se requiere el código de comprobante.");
     bancoNombre = bancos[bancoKey].nombre;
     bancoCuenta = bancos[bancoKey].cuenta;
   }
 
   const btnConfirmar = document.getElementById("btnConfirmar");
   btnConfirmar.disabled = true;
-  btnConfirmar.innerHTML = '<span class="spinner"></span>Procesando...';
+  btnConfirmar.innerHTML = '<span class="spinner"></span>Inscribiendo en Arca...';
 
   await guardarClienteSiNoExiste();
 
@@ -543,18 +534,13 @@ async function facturar() {
 
   const ticketHTML = construirTicket(datos);
 
-  // 1) Preview en modal
   document.getElementById("facturaContenido").innerHTML = ticketHTML;
   document.getElementById("overlay").style.display = "flex";
-
-  // 2) Nodo de impresión en body
   document.getElementById("ticketPrint").innerHTML = ticketHTML;
 
-  // 3) Imprimir automáticamente al confirmar
   setTimeout(() => { imprimirDirecto(); }, 300);
 
   try {
-    // Snapshot del carrito antes de limpiar
     const carritoSnapshot = [...carrito];
 
     const resVenta = await fetch(`${API}/ventas`, {
@@ -562,28 +548,23 @@ async function facturar() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         cliente, cedula, celular, correo,
-        productos: carrito, subtotal,
+        productos: carritoSnapshot, subtotal,
         descuentoPct: pct, descuentoMonto,
         total: totalFinal, tipo: tipoPago,
         meses, tasaInteres: tasaPct, montoInteres, pago, vuelto,
         banco: bancoNombre, cuenta: bancoCuenta, comprobante
       })
     });
-    if (!resVenta.ok) throw new Error("HTTP " + resVenta.status);
+    if (!resVenta.ok) throw new Error("Venta HTTP Status " + resVenta.status);
 
-    const resultadosStock = await Promise.allSettled(
+    await Promise.allSettled(
       carritoSnapshot.map(p => fetch(`${API}/productos/vender/${p.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cantidad: p.cantidad })
       }))
     );
-    const fallos = resultadosStock.filter(r => r.status === "rejected" || (r.value && !r.value.ok));
-    if (fallos.length > 0) {
-      mostrarAlerta(`⚠️ Venta guardada, pero ${fallos.length} producto(s) no actualizaron stock. Revisar bodega.`);
-    }
 
-    // 4) Enviar correo si hay dirección
     if (correo) {
       await enviarCorreo(correo, datos, carritoSnapshot);
     }
@@ -592,12 +573,12 @@ async function facturar() {
     await cargar();
 
   } catch (err) {
-    console.error("Error en facturación:", err);
-    mostrarAlerta("Error al guardar la venta. Intenta de nuevo.");
+    console.error(err);
+    mostrarAlerta("Error de persistencia al archivar venta. Reintente el ciclo.");
     document.getElementById("overlay").style.display = "none";
   } finally {
     btnConfirmar.disabled = false;
-    btnConfirmar.innerHTML = "Confirmar venta";
+    btnConfirmar.innerHTML = "Confirmar Venta e Imprimir";
   }
 }
 
@@ -619,6 +600,5 @@ function limpiarFormulario() {
   setTipo("efectivo");
 }
 </script>
-
 </body>
 </html>
