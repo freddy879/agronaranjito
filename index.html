@@ -44,13 +44,15 @@
     .btn-confirmar { width: 100%; padding: 10px; font-size: 16px; margin-top: 8px; }
     .btn-confirmar:disabled { opacity: 0.6; cursor: not-allowed; }
     .alerta-error { background: #fff0f0; border: 1px solid #ff3f34; color: #c0392b; border-radius: 6px; padding: 8px 12px; margin: 6px 0; font-size: 13px; display: none; }
+    .alerta-ok { background: #f0fff4; border: 1px solid #2ed573; color: #27ae60; border-radius: 6px; padding: 8px 12px; margin: 6px 0; font-size: 13px; display: none; }
     .banco-info { background: #f0f7ff; border: 1px solid #b3d4f5; border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #1a3c5e; margin-top: 6px; display: none; }
     .banco-info .banco-nombre { font-weight: bold; margin-bottom: 2px; }
     .banco-info .cuenta-num { font-family: monospace; font-size: 15px; letter-spacing: 1px; color: #0056b3; }
 
-    /* ── IMPRESIÓN 80mm ──
-       La técnica correcta: mover #facturaBox al body durante impresión
-       para que no quede atrapado dentro del .overlay oculto             */
+    /* ── Correo badge ── */
+    .correo-badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #e8f5e9; color: #27ae60; border: 1px solid #a5d6a7; display: inline-block; margin-left: 6px; vertical-align: middle; }
+
+    /* ── IMPRESIÓN 80mm ── */
     @media print {
       @page { size: 80mm auto; margin: 3mm; }
       body > *       { display: none !important; }
@@ -106,7 +108,10 @@
       <input id="cliente" placeholder="Cliente *">
       <input id="cedula" placeholder="Cédula">
       <input id="celular" placeholder="Celular" type="tel">
-      <input id="correo" placeholder="Correo electrónico" type="email">
+      <div style="position:relative">
+        <input id="correo" placeholder="Correo electrónico" type="email">
+        <span id="correoBadge" class="correo-badge" style="display:none">📧 Recibirá factura</span>
+      </div>
       <input id="descuento" type="number" placeholder="Descuento % (0–100)" min="0" max="100" step="0.01" oninput="clampDescuento(); actualizar()">
 
       <ul id="carrito"></ul>
@@ -145,13 +150,14 @@
       </div>
 
       <div class="alerta-error" id="alertaError"></div>
+      <div class="alerta-ok" id="alertaOk"></div>
       <button class="btn-confirmar" id="btnConfirmar" onclick="facturar()">Confirmar venta</button>
     </div>
 
   </div>
 </div>
 
-<!-- Modal: factura (solo para previsualizar en pantalla) -->
+<!-- Modal: factura preview -->
 <div class="overlay" id="overlay">
   <div class="factura">
     <div id="facturaContenido"></div>
@@ -189,27 +195,33 @@ let productos = [];
 let carrito   = [];
 let tipoPago  = "efectivo";
 let resolveCredito = null;
+/* guardamos los datos de la última venta para reenviar correo si hace falta */
+let _ultimaDatosCorreo = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("cedula").addEventListener("input", buscarCliente);
+  document.getElementById("correo").addEventListener("input", () => {
+    const val = document.getElementById("correo").value.trim();
+    document.getElementById("correoBadge").style.display = val ? "inline-block" : "none";
+  });
   cargar();
 });
 
-// ── IMPRIMIR + ABRIR CAJÓN ───────────────────────────────────────────────────
+// ── IMPRIMIR + ABRIR CAJÓN ─────────────────────────────────────────────────
 function imprimirYAbrirCaja() {
-  // Registrar afterprint UNA sola vez para abrir cajón al terminar
   window.addEventListener("afterprint", abrirCajon, { once: true });
   window.print();
 }
 
 function abrirCajon() {
-  // Las impresoras ESC/POS conectadas por USB/Serial abren el cajón
-  // automáticamente cuando reciben el trabajo de impresión (pin RJ11).
-  // Si usas QZ Tray descomenta la siguiente línea y ajusta el endpoint:
-  // fetch("http://localhost:8181/open-drawer").catch(() => {});
   console.log("Cajón abierto");
 }
-// ─────────────────────────────────────────────────────────────────────────────
+
+// ── IMPRESIÓN AUTOMÁTICA (sin abrir modal primero) ─────────────────────────
+function imprimirDirecto() {
+  window.print();
+}
+// ──────────────────────────────────────────────────────────────────────────
 
 function setTipo(tipo) {
   tipoPago = tipo;
@@ -277,6 +289,8 @@ async function buscarCliente() {
       document.getElementById("cliente").value = data.nombre  || "";
       document.getElementById("celular").value = data.telefono || "";
       document.getElementById("correo").value  = data.correo  || "";
+      // actualizar badge de correo
+      document.getElementById("correoBadge").style.display = data.correo ? "inline-block" : "none";
     }
   } catch (err) { console.error("buscarCliente:", err); }
 }
@@ -406,12 +420,18 @@ function mostrarAlerta(msg) {
   setTimeout(() => { el.style.display = "none"; }, 5000);
 }
 
+function mostrarOk(msg) {
+  const el = document.getElementById("alertaOk");
+  el.textContent = msg;
+  el.style.display = "block";
+  setTimeout(() => { el.style.display = "none"; }, 5000);
+}
+
 function cerrarFactura() {
   document.getElementById("overlay").style.display = "none";
 }
 
-// Construye el HTML del ticket y lo pone tanto en el modal (preview)
-// como en #ticketPrint (nodo raíz en body, visible al imprimir)
+// ── Construye HTML del ticket ──────────────────────────────────────────────
 function construirTicket(datos) {
   const { cliente, cedula, subtotal, pct, descuentoMonto, totalFinal,
           tasaPct, montoInteres, meses, pago, vuelto,
@@ -453,6 +473,23 @@ function construirTicket(datos) {
   return html;
 }
 
+// ── Enviar factura al correo ───────────────────────────────────────────────
+async function enviarCorreo(correo, datos, carritoSnapshot) {
+  try {
+    const res = await fetch(`${API}/correo/factura`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ correo, datos, carrito: carritoSnapshot, tipoPago })
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    mostrarOk(`📧 Factura enviada a ${correo}`);
+  } catch (err) {
+    console.error("enviarCorreo:", err);
+    mostrarAlerta("⚠️ Venta guardada, pero no se pudo enviar el correo.");
+  }
+}
+
+// ── FACTURAR ──────────────────────────────────────────────────────────────
 async function facturar() {
   const cliente = document.getElementById("cliente").value.trim();
   const cedula  = document.getElementById("cedula").value.trim();
@@ -503,16 +540,23 @@ async function facturar() {
   const datos = { cliente, cedula, subtotal, pct, descuentoMonto, totalFinal,
                   tasaPct, montoInteres, meses, pago, vuelto,
                   bancoNombre, bancoCuenta, comprobante };
+
   const ticketHTML = construirTicket(datos);
 
-  // 1) Preview en modal (pantalla)
+  // 1) Preview en modal
   document.getElementById("facturaContenido").innerHTML = ticketHTML;
   document.getElementById("overlay").style.display = "flex";
 
-  // 2) Nodo de impresión en body (fuera del overlay, visible al imprimir)
+  // 2) Nodo de impresión en body
   document.getElementById("ticketPrint").innerHTML = ticketHTML;
 
+  // 3) Imprimir automáticamente al confirmar
+  setTimeout(() => { imprimirDirecto(); }, 300);
+
   try {
+    // Snapshot del carrito antes de limpiar
+    const carritoSnapshot = [...carrito];
+
     const resVenta = await fetch(`${API}/ventas`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -528,7 +572,7 @@ async function facturar() {
     if (!resVenta.ok) throw new Error("HTTP " + resVenta.status);
 
     const resultadosStock = await Promise.allSettled(
-      carrito.map(p => fetch(`${API}/productos/vender/${p.id}`, {
+      carritoSnapshot.map(p => fetch(`${API}/productos/vender/${p.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cantidad: p.cantidad })
@@ -537,6 +581,11 @@ async function facturar() {
     const fallos = resultadosStock.filter(r => r.status === "rejected" || (r.value && !r.value.ok));
     if (fallos.length > 0) {
       mostrarAlerta(`⚠️ Venta guardada, pero ${fallos.length} producto(s) no actualizaron stock. Revisar bodega.`);
+    }
+
+    // 4) Enviar correo si hay dirección
+    if (correo) {
+      await enviarCorreo(correo, datos, carritoSnapshot);
     }
 
     limpiarFormulario();
@@ -566,6 +615,7 @@ function limpiarFormulario() {
   document.getElementById("bancoPicker").value = "";
   document.getElementById("infoGuayaquil").style.display = "none";
   document.getElementById("infoPichincha").style.display = "none";
+  document.getElementById("correoBadge").style.display = "none";
   setTipo("efectivo");
 }
 </script>
