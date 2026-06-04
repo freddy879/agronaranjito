@@ -355,6 +355,39 @@ app.delete('/clientes/:id', async (req, res) => {
 });
 
 // ================== VENTAS ==================
+
+// ── ENVIAR FACTURA POR CORREO — va ANTES de POST /ventas para evitar conflicto de orden ──
+app.post('/ventas/enviar-factura', async (req, res) => {
+  console.log("📨 POST /ventas/enviar-factura recibido, correo:", req.body?.correo);
+  const { correo, datos, carrito, tipoPago } = req.body;
+
+  if (!correo) {
+    return res.status(400).json({ error: "Correo requerido" });
+  }
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.warn("⚠️  EMAIL_USER / EMAIL_PASS no configurados.");
+    return res.status(503).json({ error: "Servicio de correo no configurado en el servidor." });
+  }
+
+  const htmlFactura = generarHTMLCorreo(datos, carrito, tipoPago);
+  const fromName    = process.env.EMAIL_FROM || "Agro Naranjito #1";
+  const subject     = `Factura de compra — ${datos?.cliente || "Cliente"} · $${Number(datos?.totalFinal || 0).toFixed(2)}`;
+
+  try {
+    await transporter.sendMail({
+      from:    `"${fromName}" <${process.env.EMAIL_USER}>`,
+      to:      correo,
+      subject,
+      html:    htmlFactura
+    });
+    console.log(`📧 Factura enviada a ${correo}`);
+    res.json({ ok: true, mensaje: `Correo enviado a ${correo}` });
+  } catch (err) {
+    console.error("❌ Error al enviar correo:", err.message);
+    res.status(500).json({ error: "No se pudo enviar el correo.", detalle: err.message });
+  }
+});
+
 app.post('/ventas', async (req, res) => {
   try {
     const nuevaVenta = {
@@ -410,41 +443,6 @@ app.post('/ventas', async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Error al guardar venta" });
-  }
-});
-
-// ── ENVIAR FACTURA POR CORREO ─────────────────────────────────────────────
-// POST /ventas/enviar-factura
-// Body: { correo, datos, carrito, tipoPago }
-app.post('/ventas/enviar-factura', async (req, res) => {
-  const { correo, datos, carrito, tipoPago } = req.body;
-
-  if (!correo) {
-    return res.status(400).json({ error: "Correo requerido" });
-  }
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.warn("⚠️  EMAIL_USER / EMAIL_PASS no configurados. No se puede enviar correo.");
-    return res.status(503).json({ error: "Servicio de correo no configurado en el servidor." });
-  }
-
-  const htmlFactura = generarHTMLCorreo(datos, carrito, tipoPago);
-  const fromName    = process.env.EMAIL_FROM || "Agro Naranjito #1";
-  const subject     = `Factura de compra — ${datos.cliente || "Cliente"} · $${Number(datos.totalFinal).toFixed(2)}`;
-
-  try {
-    await transporter.sendMail({
-      from:    `"${fromName}" <${process.env.EMAIL_USER}>`,
-      to:      correo,
-      subject,
-      html:    htmlFactura
-    });
-
-    console.log(`📧 Factura enviada a ${correo} (${datos.cliente})`);
-    res.json({ ok: true, mensaje: `Correo enviado a ${correo}` });
-
-  } catch (err) {
-    console.error("❌ Error al enviar correo:", err.message);
-    res.status(500).json({ error: "No se pudo enviar el correo.", detalle: err.message });
   }
 });
 
