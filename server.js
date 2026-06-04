@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
 const admin   = require('firebase-admin');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
 const app = express();
 
@@ -31,56 +31,32 @@ try {
 const db = admin.firestore();
 
 // =========================================================================
-// 2. CONFIGURACIÓN DE NODEMAILER (CORREOS)
+// 2. CONFIGURACIÓN DE RESEND (CORREOS — reemplaza Nodemailer)
 // =========================================================================
-let transporter = null;
-if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-  transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS // Contraseña de aplicación de 16 caracteres sin espacios
-    }
-  });
-  transporter.verify((err) => {
-    if (err) {
-      console.warn("⚠️ Nodemailer SMTP error:", err.message);
-    } else {
-      console.log("📧 Nodemailer listo desde el remitente:", process.env.EMAIL_USER);
-    }
-  });
+let resend = null;
+if (process.env.RESEND_API_KEY) {
+  resend = new Resend(process.env.RESEND_API_KEY);
+  console.log("📧 Resend listo para enviar correos.");
 } else {
-  console.warn("⚠️ EMAIL_USER o EMAIL_PASS no configurados. Envío de correos inhabilitado.");
+  console.warn("⚠️ RESEND_API_KEY no configurada. Envío de correos inhabilitado.");
 }
 
 // ── Helper: Generación dinámica del cuerpo HTML del comprobante ───────────
 function generarHTMLCorreo(datos, carrito, tipoPago) {
-  // Desestructuración segura con valores por defecto para evitar fallos de renderizado (NaN)
   const {
-    cliente = "Consumidor Final",
-    cedula = "",
-    subtotal = 0,
-    pct = 0,
-    descuentoMonto = 0,
-    totalFinal = 0,
-    tasaPct = 0,
-    montoInteres = 0,
-    meses = 0,
-    pago = 0,
-    vuelto = 0,
-    bancoNombre = "No especificado",
-    bancoCuenta = "No especificado",
-    comprobante = "Sin referencia"
-  } = datos || {};
+    cliente, cedula, subtotal, pct, descuentoMonto, totalFinal,
+    tasaPct, montoInteres, meses, pago, vuelto,
+    bancoNombre, bancoCuenta, comprobante
+  } = datos;
 
   const fecha = new Date().toLocaleString("es-EC", { dateStyle: "long", timeStyle: "short" });
 
   const filas = (carrito || []).map(p => `
     <tr>
-      <td style="padding:8px 10px; border-bottom:1px solid #f0f0f0; text-align:left;">${p.nombre || "Producto"}</td>
-      <td style="padding:8px 10px; border-bottom:1px solid #f0f0f0; text-align:center;">${p.amount || p.cantidad || 1}</td>
-      <td style="padding:8px 10px; border-bottom:1px solid #f0f0f0; text-align:right;">$${Number(p.precio || 0).toFixed(2)}</td>
-      <td style="padding:8px 10px; border-bottom:1px solid #f0f0f0; text-align:right; font-weight:bold;">$${(Number(p.precio || 0) * Number(p.amount || p.cantidad || 1)).toFixed(2)}</td>
+      <td style="padding:8px 10px; border-bottom:1px solid #f0f0f0; text-align:left;">${p.nombre}</td>
+      <td style="padding:8px 10px; border-bottom:1px solid #f0f0f0; text-align:center;">${p.amount || p.cantidad}</td>
+      <td style="padding:8px 10px; border-bottom:1px solid #f0f0f0; text-align:right;">$${Number(p.precio).toFixed(2)}</td>
+      <td style="padding:8px 10px; border-bottom:1px solid #f0f0f0; text-align:right; font-weight:bold;">$${(Number(p.precio) * Number(p.amount || p.cantidad)).toFixed(2)}</td>
     </tr>
   `).join("");
 
@@ -135,7 +111,7 @@ function generarHTMLCorreo(datos, carrito, tipoPago) {
           <tr>
             <td style="padding:24px 30px 10px;">
               <p style="margin:0 0 4px; font-size:12px; color:#888; text-transform:uppercase; letter-spacing:.5px;">Titular del Documento</p>
-              <p style="margin:0; font-size:17px; font-weight:600; color:#1e272e;">${cliente}</p>
+              <p style="margin:0; font-size:17px; font-weight:600; color:#1e272e;">${cliente || "Consumidor Final"}</p>
               ${cedula ? `<p style="margin:4px 0 0; font-size:13px; color:#555;"><b>RUC / Cédula:</b> ${cedula}</p>` : ""}
               <span style="display:inline-block; margin-top:10px; padding:4px 14px; background-color:${tipoBadgeColor}; color:#ffffff; border-radius:20px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.3px;">${tipoPago}</span>
             </td>
@@ -203,7 +179,7 @@ app.get('/health', (req, res) => {
   res.json({ ok: true, message: "NEXUS Core Engine activo", time: new Date() });
 });
 
-// --- ENDPOINTS: MÓDULO PRODUCTOS / BODEGA ---
+// --- ENPOINTS: MÓDULO PRODUCTOS / BODEGA ---
 app.get('/productos', async (req, res) => {
   try {
     const snapshot = await db.collection('productos').get();
@@ -364,6 +340,7 @@ app.delete('/clientes/:id', async (req, res) => {
 });
 
 // --- ENDPOINTS: MÓDULO VENTAS & FACTURACIÓN DIGITAL ---
+
 app.post('/correo/factura', async (req, res) => {
   console.log("📨 Petición entrante POST /correo/factura para:", req.body?.correo);
   const { correo, datos, carrito, tipoPago } = req.body;
@@ -371,26 +348,33 @@ app.post('/correo/factura', async (req, res) => {
   if (!correo) {
     return res.status(400).json({ error: "La dirección de correo destinataria es obligatoria." });
   }
-  if (!transporter) {
-    return res.status(503).json({ error: "El servicio SMTP del servidor se encuentra inactivo." });
+  if (!resend) {
+    return res.status(503).json({ error: "El servicio de correo no está configurado. Falta RESEND_API_KEY." });
   }
 
   try {
     const htmlFactura = generarHTMLCorreo(datos, carrito, tipoPago);
-    const fromName    = process.env.EMAIL_FROM || "Agro Naranjito #1";
     const subject     = `🧾 Comprobante Digital — ${datos?.cliente || "Cliente"} · Total: $${Number(datos?.totalFinal || 0).toFixed(2)}`;
 
-    await transporter.sendMail({
-      from:    `"${fromName}" <${process.env.EMAIL_USER}>`,
+    const { error } = await resend.emails.send({
+      // Mientras no tengas dominio propio verificado en Resend, usa este remitente:
+      from: "Agro Naranjito #1 <onboarding@resend.dev>",
+      // Cuando tengas tu dominio verificado, cambia a algo como:
+      // from: "Agro Naranjito #1 <factura@tudominio.com>",
       to:      correo,
       subject,
       html:    htmlFactura
     });
-    
+
+    if (error) {
+      console.error("❌ Resend error:", error);
+      return res.status(500).json({ error: "Fallo al enviar correo.", detalle: error.message });
+    }
+
     console.log(`📧 Factura despachada con éxito a: ${correo}`);
     res.json({ ok: true, mensaje: `Correo enviado satisfactoriamente a ${correo}` });
   } catch (err) {
-    console.error("❌ Error crítico en Nodemailer:", err.message);
+    console.error("❌ Error crítico en Resend:", err.message);
     res.status(500).json({ error: "Fallo crítico al despachar correo electrónico.", detalle: err.message });
   }
 });
@@ -813,7 +797,7 @@ app.get('/analisis', async (req, res) => {
           const precio   = Number(p.precio   || 0);
           const costo    = Number(p.precioCosto || p.costo || 0);
           const ganancia = (precio - costo) * cantidad;
-          
+
           if (!productos[nombre]) productos[nombre] = { nombre, vendidos: 0, ganancia: 0 };
           productos[nombre].vendidos += cantidad;
           productos[nombre].ganancia += ganancia;
@@ -821,11 +805,11 @@ app.get('/analisis', async (req, res) => {
       }
     });
 
-    const lista        = Object.values(productos);
-    const masVendidos  = [...lista].sort((a, b) => b.vendidos  - a.vendidos ).slice(0, 5);
-    const menosVendidos= [...lista].sort((a, b) => a.vendidos  - b.vendidos ).slice(0, 5);
-    const masGanancia  = [...lista].sort((a, b) => b.ganancia  - a.ganancia ).slice(0, 5);
-    const menosGanancia= [...lista].sort((a, b) => a.ganancia  - b.ganancia ).slice(0, 5);
+    const lista         = Object.values(productos);
+    const masVendidos   = [...lista].sort((a, b) => b.vendidos  - a.vendidos ).slice(0, 5);
+    const menosVendidos = [...lista].sort((a, b) => a.vendidos  - b.vendidos ).slice(0, 5);
+    const masGanancia   = [...lista].sort((a, b) => b.ganancia  - a.ganancia ).slice(0, 5);
+    const menosGanancia = [...lista].sort((a, b) => a.ganancia  - b.ganancia ).slice(0, 5);
     const clientesUnicos = new Set(ventas.map(v => v.cedula || v.cliente)).size;
 
     res.json({ ventas, totalGeneral, efectivo, credito, transferencia, clientes: clientesUnicos, porDia, porMes, masVendidos, menosVendidos, masGanancia, menosGanancia });
