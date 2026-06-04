@@ -36,22 +36,25 @@ const db = admin.firestore();
 //
 // Para crear la contraseña de aplicación en Gmail:
 //   Mi cuenta Google → Seguridad → Verificación en 2 pasos → Contraseñas de aplicación
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
-
-transporter.verify((err) => {
-  if (err) {
-    console.warn("⚠️  Nodemailer no pudo verificar la conexión SMTP:", err.message);
-    console.warn("    Revisa EMAIL_USER y EMAIL_PASS en tus variables de entorno.");
-  } else {
-    console.log("📧 Nodemailer listo para enviar correos desde:", process.env.EMAIL_USER);
-  }
-});
+let transporter = null;
+if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+  transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
+  transporter.verify((err) => {
+    if (err) {
+      console.warn("\u26a0\ufe0f  Nodemailer SMTP error:", err.message);
+    } else {
+      console.log("\ud83d\udce7 Nodemailer listo desde:", process.env.EMAIL_USER);
+    }
+  });
+} else {
+  console.warn("\u26a0\ufe0f  EMAIL_USER / EMAIL_PASS no configurados. Correos desactivados.");
+}
 
 // ── Helper: genera el HTML completo del correo ────────────────────────────
 function generarHTMLCorreo(datos, carrito, tipoPago) {
@@ -364,8 +367,7 @@ app.post('/correo/factura', async (req, res) => {
   if (!correo) {
     return res.status(400).json({ error: "Correo requerido" });
   }
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.warn("⚠️  EMAIL_USER / EMAIL_PASS no configurados.");
+  if (!transporter) {
     return res.status(503).json({ error: "Servicio de correo no configurado en el servidor." });
   }
 
