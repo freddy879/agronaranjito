@@ -31,20 +31,27 @@ try {
 const db = admin.firestore();
 
 // =========================================================================
-// 2. CONFIGURACIÓN DE NODEMAILER CON GMAIL GRATIS
+// 2. CONFIGURACIÓN DE NODEMAILER CON GMAIL (OPTIMIZADO PARA RENDER)
 // =========================================================================
 let transporter = null;
 if (process.env.GMAIL_USER && process.env.GMAIL_PASS) {
   transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true, // true para usar SSL directo en el puerto 465
     auth: {
-      user: process.env.GMAIL_USER, // Tu correo configurado en las variables de Render
-      pass: process.env.GMAIL_PASS  // Tus 16 letras de contraseña de aplicación en Render
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_PASS
+    },
+    tls: {
+      // Evita rechazos de conexión por resolución DNS estricta en contenedores de Render
+      rejectUnauthorized: false
     }
   });
+
   transporter.verify((err) => {
     if (err) {
-      console.warn("⚠️ Gmail SMTP error:", err.message);
+      console.warn("⚠️ Gmail SMTP error de verificación:", err.message);
     } else {
       console.log("📧 Gmail SMTP listo para despachar facturas a clientes.");
     }
@@ -342,9 +349,7 @@ app.delete('/clientes/:id', async (req, res) => {
   }
 });
 
-// =========================================================================
-// ENDPOINT DE CORREO (DINÁMICO - GMAIL GRATIS)
-// =========================================================================
+// --- CORREO ---
 app.post('/correo/factura', async (req, res) => {
   console.log("📨 Petición entrante POST /correo/factura para:", req.body?.correo);
   const { correo, datos, carrito, tipoPago } = req.body;
@@ -353,7 +358,7 @@ app.post('/correo/factura', async (req, res) => {
     return res.status(400).json({ error: "La dirección de correo destinataria es obligatoria." });
   }
   if (!transporter) {
-    return res.status(503).json({ error: "El servicio SMTP de Gmail no está listo. Verifica las variables en Render." });
+    return res.status(503).json({ error: "El servicio SMTP de Gmail no está configurado o inicializado." });
   }
 
   try {
@@ -361,8 +366,8 @@ app.post('/correo/factura', async (req, res) => {
     const subject     = `🧾 Comprobante Digital — ${datos?.cliente || "Cliente"} · Total: $${Number(datos?.totalFinal || 0).toFixed(2)}`;
 
     await transporter.sendMail({
-      from: `"Agro Naranjito #1" <${process.env.GMAIL_USER}>`, // Despachado formalmente desde tu Gmail configurado
-      to:      correo, // Envía dinámicamente al correo de tu cliente receptor
+      from: `"Agro Naranjito #1" <${process.env.GMAIL_USER}>`,
+      to:      correo,
       subject,
       html:    htmlFactura
     });
@@ -788,11 +793,11 @@ app.get('/analisis', async (req, res) => {
           const cantidad = Number(p.amount || p.cantidad || 1);
           const precio   = Number(p.precio   || 0);
           const costo    = Number(p.precioCosto || p.costo || 0);
-          const ganancia = (precio - costo) * candy || 0; // Se mantiene lógica original
+          const ganancia = (precio - costo) * cantidad;
 
           if (!productos[nombre]) productos[nombre] = { nombre, vendidos: 0, ganancia: 0 };
           productos[nombre].vendidos += cantidad;
-          productos[nombre].ganancia += (precio - costo) * cantidad;
+          productos[nombre].ganancia += ganancia;
         });
       }
     });
