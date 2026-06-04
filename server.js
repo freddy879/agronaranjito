@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
 const admin   = require('firebase-admin');
-const nodemailer = require('nodemailer');
 
 const app = express();
 
@@ -30,34 +29,6 @@ try {
 
 const db = admin.firestore();
 
-// =========================================================================
-// 2. CONFIGURACIÓN DE NODEMAILER CON BREVO SMTP (DATOS REALES)
-// =========================================================================
-let transporter = null;
-if (process.env.BREVO_SMTP_KEY) {
-  transporter = nodemailer.createTransport({
-    host: 'smtp-relay.brevo.com',
-    port: 587,
-    secure: false, // false porque el puerto 587 usa TLS / STARTTLS
-    auth: {
-      user: 'ad85ef001@smtp-brevo.com', // Tu login real de Brevo
-      pass: process.env.BREVO_SMTP_KEY  // Render jalará la clave automáticamente de aquí
-    },
-    tls: {
-      rejectUnauthorized: false // Previene bloqueos por DNS en los contenedores de Render
-    }
-  });
-
-  transporter.verify((err) => {
-    if (err) {
-      console.warn("⚠️ Brevo SMTP error de verificación:", err.message);
-    } else {
-      console.log("📧 Relay Brevo SMTP listo para despachar facturas a clientes.");
-    }
-  });
-} else {
-  console.warn("⚠️ BREVO_SMTP_KEY no configurado en Render. Envío de correos inhabilitado.");
-}
 // ── Helper: Generación dinámica del cuerpo HTML del comprobante ───────────
 function generarHTMLCorreo(datos, carrito, tipoPago) {
   const {
@@ -182,7 +153,7 @@ const mapearDocs = (snapshot) => {
 };
 
 // =========================================================================
-// 3. ENDPOINTS API REST
+// 2. ENDPOINTS API REST
 // =========================================================================
 
 app.get('/health', (req, res) => {
@@ -221,7 +192,7 @@ app.put('/productos/agregar/:id', async (req, res) => {
   try {
     const docRef = db.collection('productos').doc(req.params.id);
     const doc = await docRef.get();
-    if (!doc.exists) return res.status(404).json({ error: "Documento objetivo inexistente" });
+    if (!doc.exists) return res.status(404).json({ error: "Documento objetivo idoneo inexistente" });
     const p = doc.data();
     await docRef.update({ stock: (p.stock || 0) + Number(req.body.cantidad) });
     res.json({ ok: true });
@@ -347,7 +318,9 @@ app.delete('/clientes/:id', async (req, res) => {
   }
 });
 
-// --- CORREO ---
+// =========================================================================
+// INTERCONEXIÓN DIRECTA CON BREVO API V3 (BYPASS DE BLOQUEO DE RED RENDER)
+// =========================================================================
 app.post('/correo/factura', async (req, res) => {
   console.log("📨 Petición entrante POST /correo/factura para:", req.body?.correo);
   const { correo, datos, carrito, tipoPago } = req.body;
@@ -355,26 +328,45 @@ app.post('/correo/factura', async (req, res) => {
   if (!correo) {
     return res.status(400).json({ error: "La dirección de correo destinataria es obligatoria." });
   }
-  if (!transporter) {
-    return res.status(503).json({ error: "El servicio SMTP de Gmail no está configurado o inicializado." });
+  if (!process.env.BREVO_SMTP_KEY) {
+    return res.status(503).json({ error: "La API Key de Brevo no está configurada en las variables de entorno." });
   }
 
   try {
     const htmlFactura = generarHTMLCorreo(datos, carrito, tipoPago);
     const subject     = `🧾 Comprobante Digital — ${datos?.cliente || "Cliente"} · Total: $${Number(datos?.totalFinal || 0).toFixed(2)}`;
 
-    await transporter.sendMail({
-      from: `"Agro Naranjito #1" <${process.env.GMAIL_USER}>`,
-      to:      correo,
-      subject,
-      html:    htmlFactura
+    // Payload estruturado según el esquema REST de Brevo API v3
+    const payload = {
+      sender: { name: "Agro Naranjito #1", email: "miguelfreddy78@gmail.com" },
+      to: [{ email: correo }],
+      subject: subject,
+      htmlContent: htmlFactura
+    };
+
+    // Petición HTTP POST nativa (Inmune a bloqueos de puertos salientes)
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': process.env.BREVO_SMTP_KEY,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify(payload)
     });
 
-    console.log(`📧 Factura despachada con éxito a: ${correo}`);
+    const resultadoJson = await response.json();
+
+    if (!response.ok) {
+      throw new Error(resultadoJson.message || `Error en la API de Brevo: ${response.status}`);
+    }
+
+    console.log(`📧 Factura despachada con éxito vía API a: ${correo} (ID: ${resultadoJson.messageId})`);
     res.json({ ok: true, mensaje: `Correo enviado satisfactoriamente a ${correo}` });
+
   } catch (err) {
-    console.error("❌ Error crítico en Gmail SMTP:", err.message);
-    res.status(500).json({ error: "Fallo crítico al despachar correo electrónico.", detalle: err.message });
+    console.error("❌ Error crítico en Brevo API HTTP:", err.message);
+    res.status(500).json({ error: "Fallo crítico al despachar correo electrónico mediante API.", detalle: err.message });
   }
 });
 
@@ -686,7 +678,7 @@ app.post('/caja/transferencia', async (req, res) => {
       comprobante: req.body.comprobante || "", remitente: req.body.remitente || "",
       fecha: new Date().toISOString()
     });
-    await docRef.update(caja);
+    await db.collection('cajas').doc(snapshot.docs[0].id).update(caja);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Fallo de comunicación en asiento bancario" });
@@ -814,7 +806,7 @@ app.get('/analisis', async (req, res) => {
 });
 
 // =========================================================================
-// 4. INICIALIZACIÓN
+// 3. INICIALIZACIÓN
 // =========================================================================
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
