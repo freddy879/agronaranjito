@@ -356,9 +356,9 @@ app.delete('/clientes/:id', async (req, res) => {
 
 // ================== VENTAS ==================
 
-// ── ENVIAR FACTURA POR CORREO — va ANTES de POST /ventas para evitar conflicto de orden ──
-app.post('/ventas/enviar-factura', async (req, res) => {
-  console.log("📨 POST /ventas/enviar-factura recibido, correo:", req.body?.correo);
+// ── ENVIAR FACTURA POR CORREO ──────────────────────────────────────────────
+app.post('/correo/factura', async (req, res) => {
+  console.log("📨 POST /correo/factura recibido, correo:", req.body?.correo);
   const { correo, datos, carrito, tipoPago } = req.body;
 
   if (!correo) {
