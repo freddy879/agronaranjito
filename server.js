@@ -11,7 +11,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('.'));
 
-// ================== FIREBASE ==================
+// =========================================================================
+// 1. CONFIGURACIÓN DE FIREBASE ADMIN SDK
+// =========================================================================
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   console.error("❌ ERROR CRÍTICO: La variable de entorno FIREBASE_SERVICE_ACCOUNT no está configurada.");
   process.exit(1);
@@ -22,41 +24,36 @@ try {
   admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
   console.log("✅ ¡Conectado exitosamente a Firebase Cloud Firestore!");
 } catch (error) {
-  console.error("❌ Error al procesar FIREBASE_SERVICE_ACCOUNT:", error.message);
+  console.error("❌ Error crítico al procesar FIREBASE_SERVICE_ACCOUNT:", error.message);
   process.exit(1);
 }
 
 const db = admin.firestore();
 
-// ================== NODEMAILER ==================
-// Variables necesarias en tu .env / Render:
-//   EMAIL_USER    → tu dirección Gmail (ej: tienda@gmail.com)
-//   EMAIL_PASS    → contraseña de aplicación Google (16 caracteres, sin espacios)
-//   EMAIL_FROM    → nombre visible (ej: "Agro Naranjito #1") — opcional
-//
-// Para crear la contraseña de aplicación en Gmail:
-//   Mi cuenta Google → Seguridad → Verificación en 2 pasos → Contraseñas de aplicación
+// =========================================================================
+// 2. CONFIGURACIÓN DE NODEMAILER (CORREOS)
+// =========================================================================
 let transporter = null;
 if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
   transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
       user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
+      pass: process.env.EMAIL_PASS // Contraseña de aplicación de 16 caracteres sin espacios
     }
   });
   transporter.verify((err) => {
     if (err) {
-      console.warn("\u26a0\ufe0f  Nodemailer SMTP error:", err.message);
+      console.warn("⚠️ Nodemailer SMTP error:", err.message);
     } else {
-      console.log("\ud83d\udce7 Nodemailer listo desde:", process.env.EMAIL_USER);
+      console.log("📧 Nodemailer listo desde el remitente:", process.env.EMAIL_USER);
     }
   });
 } else {
-  console.warn("\u26a0\ufe0f  EMAIL_USER / EMAIL_PASS no configurados. Correos desactivados.");
+  console.warn("⚠️ EMAIL_USER o EMAIL_PASS no configurados. Envío de correos inhabilitado.");
 }
 
-// ── Helper: genera el HTML completo del correo ────────────────────────────
+// ── Helper: Generación dinámica del cuerpo HTML del comprobante ───────────
 function generarHTMLCorreo(datos, carrito, tipoPago) {
   const {
     cliente, cedula, subtotal, pct, descuentoMonto, totalFinal,
@@ -68,40 +65,40 @@ function generarHTMLCorreo(datos, carrito, tipoPago) {
 
   const filas = (carrito || []).map(p => `
     <tr>
-      <td style="padding:6px 10px;border-bottom:1px solid #f0f0f0">${p.nombre}</td>
-      <td style="padding:6px 10px;border-bottom:1px solid #f0f0f0;text-align:center">${p.cantidad}</td>
-      <td style="padding:6px 10px;border-bottom:1px solid #f0f0f0;text-align:right">$${Number(p.precio).toFixed(2)}</td>
-      <td style="padding:6px 10px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:bold">$${(Number(p.precio) * Number(p.cantidad)).toFixed(2)}</td>
+      <td style="padding:8px 10px; border-bottom:1px solid #f0f0f0; text-align:left;">${p.nombre}</td>
+      <td style="padding:8px 10px; border-bottom:1px solid #f0f0f0; text-align:center;">${p.amount || p.cantidad}</td>
+      <td style="padding:8px 10px; border-bottom:1px solid #f0f0f0; text-align:right;">$${Number(p.precio).toFixed(2)}</td>
+      <td style="padding:8px 10px; border-bottom:1px solid #f0f0f0; text-align:right; font-weight:bold;">$${(Number(p.precio) * Number(p.amount || p.cantidad)).toFixed(2)}</td>
     </tr>
   `).join("");
 
   let detallePago = "";
   if (tipoPago === "efectivo") {
     detallePago = `
-      <tr><td style="padding:4px 0;color:#555">Pago recibido</td><td style="text-align:right">$${Number(pago).toFixed(2)}</td></tr>
-      <tr><td style="padding:4px 0;color:#555">Vuelto</td><td style="text-align:right">$${Number(vuelto).toFixed(2)}</td></tr>
+      <tr><td style="padding:4px 0; color:#555;">Monto Recibido</td><td style="text-align:right; font-weight:500;">$${Number(pago).toFixed(2)}</td></tr>
+      <tr><td style="padding:4px 0; color:#555;">Vuelto Entregado</td><td style="text-align:right; font-weight:500;">$${Number(vuelto).toFixed(2)}</td></tr>
     `;
   } else if (tipoPago === "transferencia") {
     detallePago = `
-      <tr><td style="padding:4px 0;color:#555">Banco</td><td style="text-align:right">${bancoNombre}</td></tr>
-      <tr><td style="padding:4px 0;color:#555">Cuenta</td><td style="text-align:right">${bancoCuenta}</td></tr>
-      <tr><td style="padding:4px 0;color:#555">Comprobante</td><td style="text-align:right">${comprobante}</td></tr>
+      <tr><td style="padding:4px 0; color:#555;">Entidad Bancaria</td><td style="text-align:right; font-weight:500;">${bancoNombre}</td></tr>
+      <tr><td style="padding:4px 0; color:#555;">Nº de Cuenta</td><td style="text-align:right; font-family:monospace;">${bancoCuenta}</td></tr>
+      <tr><td style="padding:4px 0; color:#555;">Nº Referencia / Código</td><td style="text-align:right; font-weight:bold; color:#1e272e;">${comprobante}</td></tr>
     `;
   } else if (tipoPago === "credito") {
     detallePago = `
-      <tr><td style="padding:4px 0;color:#555">Interés (${tasaPct}%)</td><td style="text-align:right">$${Number(montoInteres).toFixed(2)}</td></tr>
-      <tr><td style="padding:4px 0;color:#555">Plazo</td><td style="text-align:right">${meses} meses</td></tr>
+      <tr><td style="padding:4px 0; color:#555;">Tasa Diferido (${tasaPct}%)</td><td style="text-align:right; color:#e67e22;">+$${Number(montoInteres).toFixed(2)}</td></tr>
+      <tr><td style="padding:4px 0; color:#555;">Plazo Acordado</td><td style="text-align:right; font-weight:500;">${meses} meses</td></tr>
     `;
   }
 
   const descuentoRow = Number(pct) > 0 ? `
     <tr>
-      <td style="padding:4px 0;color:#555">Subtotal</td>
-      <td style="text-align:right">$${Number(subtotal).toFixed(2)}</td>
+      <td style="padding:4px 0; color:#555;">Subtotal Bruto</td>
+      <td style="text-align:right;">$${Number(subtotal).toFixed(2)}</td>
     </tr>
     <tr>
-      <td style="padding:4px 0;color:#e03329">Descuento (${pct}%)</td>
-      <td style="text-align:right;color:#e03329">-$${Number(descuentoMonto).toFixed(2)}</td>
+      <td style="padding:4px 0; color:#e03329;">Descuento Aplicado (${pct}%)</td>
+      <td style="text-align:right; color:#e03329; font-weight:500;">-$${Number(descuentoMonto).toFixed(2)}</td>
     </tr>
   ` : "";
 
@@ -111,71 +108,65 @@ function generarHTMLCorreo(datos, carrito, tipoPago) {
   <!DOCTYPE html>
   <html lang="es">
   <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-  <body style="margin:0;padding:0;background:#f5f6fa;font-family:'Segoe UI',Arial,sans-serif">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f6fa;padding:30px 0">
+  <body style="margin:0; padding:0; background-color:#f5f6fa; font-family:'Segoe UI',Arial,sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f6fa; padding:30px 0;">
       <tr><td align="center">
-        <table width="520" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08)">
-
-          <!-- Cabecera -->
+        <table width="540" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.06);">
+          <!-- Cabecera corporativa -->
           <tr>
-            <td style="background:#ff3f34;padding:24px 28px;text-align:center">
-              <h1 style="margin:0;color:#fff;font-size:22px;letter-spacing:1px">AGRO NARANJITO #1</h1>
-              <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:13px">Factura de venta · ${fecha}</p>
+            <td style="background-color:#ff3f34; padding:26px 30px; text-align:center;">
+              <h1 style="margin:0; color:#ffffff; font-size:24px; letter-spacing:1px; font-weight:700;">AGRO NARANJITO #1</h1>
+              <p style="margin:4px 0 0; color:rgba(255,255,255,0.85); font-size:13px;">Comprobante Digital de Venta · ${fecha}</p>
             </td>
           </tr>
-
-          <!-- Datos cliente -->
+          <!-- Información de la Factura -->
           <tr>
-            <td style="padding:20px 28px 10px">
-              <p style="margin:0 0 4px;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:.5px">Cliente</p>
-              <p style="margin:0;font-size:16px;font-weight:600;color:#1e272e">${cliente || "-"}</p>
-              ${cedula ? `<p style="margin:2px 0 0;font-size:13px;color:#555">Cédula: ${cedula}</p>` : ""}
-              <span style="display:inline-block;margin-top:8px;padding:3px 12px;background:${tipoBadgeColor};color:#fff;border-radius:20px;font-size:12px;font-weight:600;text-transform:uppercase">${tipoPago}</span>
+            <td style="padding:24px 30px 10px;">
+              <p style="margin:0 0 4px; font-size:12px; color:#888; text-transform:uppercase; letter-spacing:.5px;">Titular del Documento</p>
+              <p style="margin:0; font-size:17px; font-weight:600; color:#1e272e;">${cliente || "Consumidor Final"}</p>
+              ${cedula ? `<p style="margin:4px 0 0; font-size:13px; color:#555;"><b>RUC / Cédula:</b> ${cedula}</p>` : ""}
+              <span style="display:inline-block; margin-top:10px; padding:4px 14px; background-color:${tipoBadgeColor}; color:#ffffff; border-radius:20px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.3px;">${tipoPago}</span>
             </td>
           </tr>
-
-          <!-- Productos -->
+          <!-- Desglose de Productos -->
           <tr>
-            <td style="padding:0 28px">
-              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:10px">
+            <td style="padding:15px 30px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:5px;">
                 <thead>
-                  <tr style="background:#f8f9fa">
-                    <th style="padding:8px 10px;text-align:left;font-size:12px;color:#888;font-weight:600;text-transform:uppercase">Producto</th>
-                    <th style="padding:8px 10px;text-align:center;font-size:12px;color:#888;font-weight:600;text-transform:uppercase">Cant.</th>
-                    <th style="padding:8px 10px;text-align:right;font-size:12px;color:#888;font-weight:600;text-transform:uppercase">P.Unit</th>
-                    <th style="padding:8px 10px;text-align:right;font-size:12px;color:#888;font-weight:600;text-transform:uppercase">Total</th>
+                  <tr style="background-color:#f8f9fa;">
+                    <th style="padding:10px; text-align:left; font-size:12px; color:#777; font-weight:600; text-transform:uppercase; border-bottom:1px solid #ddd;">Detalle</th>
+                    <th style="padding:10px; text-align:center; font-size:12px; color:#777; font-weight:600; text-transform:uppercase; border-bottom:1px solid #ddd; width:50px;">Cant.</th>
+                    <th style="padding:10px; text-align:right; font-size:12px; color:#777; font-weight:600; text-transform:uppercase; border-bottom:1px solid #ddd; width:80px;">P. Unit</th>
+                    <th style="padding:10px; text-align:right; font-size:12px; color:#777; font-weight:600; text-transform:uppercase; border-bottom:1px solid #ddd; width:90px;">Total</th>
                   </tr>
                 </thead>
                 <tbody>${filas}</tbody>
               </table>
             </td>
           </tr>
-
-          <!-- Totales -->
+          <!-- Bloque de liquidación económica -->
           <tr>
-            <td style="padding:16px 28px">
+            <td style="padding:10px 30px 25px;">
               <table width="100%" cellpadding="0" cellspacing="0">
                 ${descuentoRow}
                 ${detallePago}
                 <tr>
-                  <td colspan="2"><hr style="border:none;border-top:2px solid #f0f0f0;margin:10px 0"></td>
+                  <td colspan="2"><hr style="border:none; border-top:2px dashed #f0f0f0; margin:12px 0;"></td>
                 </tr>
                 <tr>
-                  <td style="font-size:18px;font-weight:700;color:#1e272e">TOTAL</td>
-                  <td style="text-align:right;font-size:22px;font-weight:700;color:#ff3f34">$${Number(totalFinal).toFixed(2)}</td>
+                  <td style="font-size:16px; font-weight:700; color:#1e272e;">IMPORTE NETO RECAUDADO</td>
+                  <td style="text-align:right; font-size:22px; font-weight:700; color:#ff3f34;">$${Number(totalFinal).toFixed(2)}</td>
                 </tr>
               </table>
             </td>
           </tr>
-
-          <!-- Pie -->
+          <!-- Pie informativo -->
           <tr>
-            <td style="background:#f8f9fa;padding:18px 28px;text-align:center;border-top:1px solid #f0f0f0">
-              <p style="margin:0;font-size:14px;color:#555">¡Gracias por su compra! 😊</p>
-              <p style="margin:4px 0 0;font-size:12px;color:#aaa">Agro Naranjito #1 · Este correo se generó automáticamente</p>
+            <td style="background-color:#f8f9fa; padding:20px 30px; text-align:center; border-top:1px solid #f0f0f0;">
+              <p style="margin:0; font-size:14px; color:#2c3e50; font-weight:500;">¡Gracias por depositar su confianza en nosotros! 😊</p>
+              <p style="margin:4px 0 0; font-size:11px; color:#7f8c8d;">Agro Naranjito #1 · Nota: Este documento digital es un comprobante automático de caja.</p>
             </td>
           </tr>
-
         </table>
       </td></tr>
     </table>
@@ -184,25 +175,29 @@ function generarHTMLCorreo(datos, carrito, tipoPago) {
   `;
 }
 
-// ── Helper: mapa docs Firestore ───────────────────────────────────────────
+// Helper para extracción limpia de colecciones estructuradas
 const mapearDocs = (snapshot) => {
   const docs = [];
   snapshot.forEach(doc => docs.push({ _id: doc.id, ...doc.data() }));
   return docs;
 };
 
-// ================== HEALTH ==================
+// =========================================================================
+// 3. ENDPOINTS API REST RESTFUL
+// =========================================================================
+
+// --- HEALTH VERIFICATION ---
 app.get('/health', (req, res) => {
-  res.json({ ok: true, message: "Servidor activo", time: new Date() });
+  res.json({ ok: true, message: "NEXUS Core Engine activo", time: new Date() });
 });
 
-// ================== PRODUCTOS ==================
+// --- ENPOINTS: MÓDULO PRODUCTOS / BODEGA ---
 app.get('/productos', async (req, res) => {
   try {
     const snapshot = await db.collection('productos').get();
     res.json(mapearDocs(snapshot));
   } catch (err) {
-    console.error(err);
+    console.error("Error al obtener productos:", err);
     res.json([]);
   }
 });
@@ -212,7 +207,7 @@ app.post('/productos', async (req, res) => {
     await db.collection('productos').add(req.body);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Error al crear producto" });
+    res.status(500).json({ error: "Error interno al crear producto" });
   }
 });
 
@@ -221,7 +216,7 @@ app.put('/productos/:id', async (req, res) => {
     await db.collection('productos').doc(req.params.id).update(req.body);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Error al editar producto" });
+    res.status(500).json({ error: "Error interno al editar propiedades del producto" });
   }
 });
 
@@ -229,12 +224,12 @@ app.put('/productos/agregar/:id', async (req, res) => {
   try {
     const docRef = db.collection('productos').doc(req.params.id);
     const doc = await docRef.get();
-    if (!doc.exists) return res.json({ error: "No existe" });
+    if (!doc.exists) return res.status(404).json({ error: "Documento objetivo inexistente" });
     const p = doc.data();
     await docRef.update({ stock: (p.stock || 0) + Number(req.body.cantidad) });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Error al agregar stock" });
+    res.status(500).json({ error: "Error interno al reaprovisionar stock" });
   }
 });
 
@@ -242,14 +237,14 @@ app.put('/productos/vender/:id', async (req, res) => {
   try {
     const docRef = db.collection('productos').doc(req.params.id);
     const doc = await docRef.get();
-    if (!doc.exists) return res.json({ error: "No existe" });
+    if (!doc.exists) return res.status(404).json({ error: "El producto no existe en el catálogo" });
     const p = doc.data();
     let nuevoStock = (p.stock || 0) - Number(req.body.cantidad);
     if (nuevoStock < 0) nuevoStock = 0;
     await docRef.update({ stock: nuevoStock });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Error al vender" });
+    res.status(500).json({ error: "Error de inventario al procesar el descuento posventa" });
   }
 });
 
@@ -258,14 +253,13 @@ app.delete('/productos/:id', async (req, res) => {
     await db.collection('productos').doc(req.params.id).delete();
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Error al eliminar" });
+    res.status(500).json({ error: "Error interno al purgar producto" });
   }
 });
 
-// ================== CLIENTES ==================
+// --- ENDPOINTS: MÓDULO CLIENTES ---
 app.post('/clientes', async (req, res) => {
   try {
-    console.log("➡️ POST /clientes:", req.body);
     const nuevoCliente = {
       nombre:     req.body.nombre    || "Sin Nombre",
       cedula:     req.body.cedula    || "Sin Cédula",
@@ -280,8 +274,8 @@ app.post('/clientes', async (req, res) => {
     const resultado = await db.collection('clientes').add(nuevoCliente);
     res.json({ ok: true, cliente: { _id: resultado.id, ...nuevoCliente } });
   } catch (err) {
-    console.error("❌ Error al guardar cliente:", err);
-    res.status(500).json({ error: "Error al guardar cliente", detalle: err.message });
+    console.error("❌ Error registrando cliente:", err);
+    res.status(500).json({ error: "Error de persistencia", detalle: err.message });
   }
 });
 
@@ -299,7 +293,7 @@ app.post('/clientes/sumar-deuda', async (req, res) => {
   try {
     const { cedula, total } = req.body;
     const snapshot = await db.collection('clientes').where('cedula', '==', cedula).get();
-    if (snapshot.empty) return res.status(404).json({ error: "Cliente no encontrado" });
+    if (snapshot.empty) return res.status(404).json({ error: "Cliente no registrado en la base de datos" });
     const docRef = snapshot.docs[0].ref;
     const cliente = snapshot.docs[0].data();
     const deudaTotal  = (cliente.deudaTotal  || 0) + Number(total);
@@ -307,7 +301,7 @@ app.post('/clientes/sumar-deuda', async (req, res) => {
     await docRef.update({ deudaTotal, deudaActual, estado: "deudor" });
     res.json({ ok: true, cliente: { _id: docRef.id, ...cliente, deudaTotal, deudaActual, estado: "deudor" } });
   } catch (err) {
-    res.status(500).json({ error: "Error al actualizar deuda" });
+    res.status(500).json({ error: "Error crítico al cargar línea de crédito" });
   }
 });
 
@@ -315,7 +309,7 @@ app.post('/clientes/abonar', async (req, res) => {
   try {
     const { cedula, monto } = req.body;
     const snapshot = await db.collection('clientes').where('cedula', '==', cedula).get();
-    if (snapshot.empty) return res.status(404).json({ error: "Cliente no encontrado" });
+    if (snapshot.empty) return res.status(404).json({ error: "Titular no encontrado" });
     const docRef = snapshot.docs[0].ref;
     const cliente = snapshot.docs[0].data();
     let deudaActual = (cliente.deudaActual || 0) - Number(monto);
@@ -324,7 +318,7 @@ app.post('/clientes/abonar', async (req, res) => {
     await docRef.update({ deudaActual, estado });
     res.json({ ok: true, cliente: { _id: docRef.id, ...cliente, deudaActual, estado } });
   } catch (err) {
-    res.status(500).json({ error: "Error al abonar" });
+    res.status(500).json({ error: "Error de red al aplicar abono parcial" });
   }
 });
 
@@ -334,7 +328,7 @@ app.put('/clientes/editar', async (req, res) => {
     await db.collection('clientes').doc(id).update({ nombre, cedula, telefono, correo });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Error al editar cliente" });
+    res.status(500).json({ error: "Error al refrescar ficha de cliente" });
   }
 });
 
@@ -353,40 +347,40 @@ app.delete('/clientes/:id', async (req, res) => {
     await db.collection('clientes').doc(req.params.id).delete();
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Error al eliminar cliente" });
+    res.status(500).json({ error: "No se pudo eliminar el cliente seleccionado" });
   }
 });
 
-// ================== VENTAS ==================
+// --- ENDPOINTS: MÓDULO VENTAS & FACTURACIÓN DIGITAL ---
 
-// ── ENVIAR FACTURA POR CORREO ──────────────────────────────────────────────
 app.post('/correo/factura', async (req, res) => {
-  console.log("📨 POST /correo/factura recibido, correo:", req.body?.correo);
+  console.log("📨 Petición entrante POST /correo/factura para:", req.body?.correo);
   const { correo, datos, carrito, tipoPago } = req.body;
 
   if (!correo) {
-    return res.status(400).json({ error: "Correo requerido" });
+    return res.status(400).json({ error: "La dirección de correo destinataria es obligatoria." });
   }
   if (!transporter) {
-    return res.status(503).json({ error: "Servicio de correo no configurado en el servidor." });
+    return res.status(503).json({ error: "El servicio SMTP del servidor se encuentra inactivo." });
   }
 
-  const htmlFactura = generarHTMLCorreo(datos, carrito, tipoPago);
-  const fromName    = process.env.EMAIL_FROM || "Agro Naranjito #1";
-  const subject     = `Factura de compra — ${datos?.cliente || "Cliente"} · $${Number(datos?.totalFinal || 0).toFixed(2)}`;
-
   try {
+    const htmlFactura = generarHTMLCorreo(datos, carrito, tipoPago);
+    const fromName    = process.env.EMAIL_FROM || "Agro Naranjito #1";
+    const subject     = `🧾 Comprobante Digital — ${datos?.cliente || "Cliente"} · Total: $${Number(datos?.totalFinal || 0).toFixed(2)}`;
+
     await transporter.sendMail({
       from:    `"${fromName}" <${process.env.EMAIL_USER}>`,
       to:      correo,
       subject,
       html:    htmlFactura
     });
-    console.log(`📧 Factura enviada a ${correo}`);
-    res.json({ ok: true, mensaje: `Correo enviado a ${correo}` });
+    
+    console.log(`📧 Factura despachada con éxito a: ${correo}`);
+    res.json({ ok: true, mensaje: `Correo enviado satisfactoriamente a ${correo}` });
   } catch (err) {
-    console.error("❌ Error al enviar correo:", err.message);
-    res.status(500).json({ error: "No se pudo enviar el correo.", detalle: err.message });
+    console.error("❌ Error crítico en Nodemailer:", err.message);
+    res.status(500).json({ error: "Fallo crítico al despachar correo electrónico.", detalle: err.message });
   }
 });
 
@@ -399,7 +393,7 @@ app.post('/ventas', async (req, res) => {
 
     await db.collection('ventas').add(nuevaVenta);
 
-    // Caja
+    // Conciliación con Flujos de Caja Abierta
     const cajasSnapshot = await db.collection('cajas').where('activa', '==', true).get();
     if (!cajasSnapshot.empty) {
       const cajaRef = cajasSnapshot.docs[0].ref;
@@ -410,12 +404,12 @@ app.post('/ventas', async (req, res) => {
         if (!caja.movimientos) caja.movimientos = [];
 
         if (req.body.tipo === "efectivo") {
-          caja.movimientos.push({ tipo: "ingreso", monto: req.body.total, motivo: "Venta efectivo", fecha: new Date().toISOString() });
+          caja.movimientos.push({ tipo: "ingreso", monto: req.body.total, motivo: `Venta directa efectivo - Cliente: ${req.body.cliente}`, fecha: new Date().toISOString() });
         } else {
           caja.movimientos.push({
             tipo: "transferencia",
             monto: Number(req.body.total || 0),
-            motivo: `Transferencia venta — ${req.body.banco || ""}`,
+            motivo: `Liquidación por Transferencia — ${req.body.banco || ""}`,
             banco: req.body.banco || "",
             cuenta: req.body.cuenta || "",
             comprobante: req.body.comprobante || "",
@@ -444,43 +438,41 @@ app.post('/ventas', async (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Error al guardar venta" });
+    res.status(500).json({ error: "Fallo del sistema al asentar venta" });
   }
 });
 
-// ================== BORRAR PRODUCTO DE VENTA ==================
 app.delete('/ventas/producto/:ventaId/:indice', async (req, res) => {
   try {
     const docRef = db.collection('ventas').doc(req.params.ventaId);
     const doc    = await docRef.get();
-    if (!doc.exists) return res.status(404).json({ error: "Venta no encontrada" });
+    if (!doc.exists) return res.status(404).json({ error: "Registro de transacción no localizado" });
 
     const venta  = doc.data();
     const indice = Number(req.params.indice);
     if (isNaN(indice) || indice < 0 || indice >= venta.productos.length) {
-      return res.status(400).json({ error: "Índice inválido" });
+      return res.status(400).json({ error: "Direccionamiento indexado incorrecto" });
     }
 
     venta.productos.splice(indice, 1);
 
     if (venta.productos.length === 0) {
       await docRef.delete();
-      return res.json({ msg: "Venta eliminada (quedó sin productos)" });
+      return res.json({ msg: "Transacción purgada en su totalidad (Remoción total de items)" });
     } else {
-      venta.total = venta.productos.reduce((sum, p) => sum + (Number(p.precio || 0) * Number(p.cantidad || 1)), 0);
+      venta.total = venta.productos.reduce((sum, p) => sum + (Number(p.precio || 0) * Number(p.amount || p.cantidad || 1)), 0);
       await docRef.update({ productos: venta.productos, total: venta.total });
-      res.json({ msg: "Producto eliminado correctamente" });
+      res.json({ msg: "Item removido e importes recalculados." });
     }
   } catch (err) {
-    res.status(500).json({ error: "Error al borrar el producto" });
+    res.status(500).json({ error: "Error al modificar la venta consolidada" });
   }
 });
 
-// ================== BORRAR DÍA ==================
 app.delete('/ventas/dia', async (req, res) => {
   try {
     const { fecha } = req.body;
-    if (!fecha) return res.status(400).json({ error: "Falta fecha" });
+    if (!fecha) return res.status(400).json({ error: "Parámetro fecha ausente" });
 
     const inicio = new Date(fecha + "T00:00:00.000Z").toISOString();
     const fin    = new Date(fecha + "T23:59:59.999Z").toISOString();
@@ -494,13 +486,13 @@ app.delete('/ventas/dia', async (req, res) => {
     snapshot.docs.forEach(doc => batch.delete(doc.ref));
     await batch.commit();
 
-    res.json({ ok: true, msg: `${snapshot.size} venta(s) eliminadas`, deleted: snapshot.size });
+    res.json({ ok: true, msg: `Cierre forzado: ${snapshot.size} venta(s) eliminada(s)`, deleted: snapshot.size });
   } catch (err) {
-    res.status(500).json({ error: "Error al borrar día" });
+    res.status(500).json({ error: "Fallo al purgar registros diarios" });
   }
 });
 
-// ================== DEUDAS ==================
+// --- ENDPOINTS: GESTIÓN DE CRÉDITO Y DEUDAS ---
 app.get('/deudas', async (req, res) => {
   try {
     const snapshot = await db.collection('deudas').orderBy('fecha', 'desc').get();
@@ -527,7 +519,7 @@ app.post('/deudas', async (req, res) => {
     const resultado = await db.collection('deudas').add(nueva);
     res.json({ _id: resultado.id, ...nueva });
   } catch (err) {
-    res.status(500).json({ error: "Error al crear deuda" });
+    res.status(500).json({ error: "No se pudo aperturar la cuenta por cobrar" });
   }
 });
 
@@ -535,14 +527,14 @@ app.post('/deudas/pagar', async (req, res) => {
   try {
     const docRef = db.collection('deudas').doc(req.body.id);
     const doc    = await docRef.get();
-    if (!doc.exists) return res.json({ error: "Deuda no encontrada" });
+    if (!doc.exists) return res.json({ error: "Cuenta de deuda no localizada" });
 
     const deuda   = doc.data();
     const monto   = Number(req.body.monto);
-    if (!monto || monto <= 0) return res.json({ error: "Monto inválido" });
+    if (!monto || monto <= 0) return res.json({ error: "Importe introducido inválido" });
 
     const restante = deuda.total - deuda.pagado;
-    if (monto > restante) return res.json({ error: "No puedes pagar más de la deuda" });
+    if (monto > restante) return res.json({ error: "Sobrepago no permitido para el saldo restante" });
 
     deuda.pagado += monto;
     if (!deuda.pagos) deuda.pagos = [];
@@ -561,9 +553,9 @@ app.post('/deudas/pagar', async (req, res) => {
       if (!caja.movimientos) caja.movimientos = [];
 
       if (metodoPago === "transferencia") {
-        caja.movimientos.push({ tipo: "transferencia", monto, motivo: `Abono deuda — ${deuda.cliente}`, banco, comprobante, remitente: deuda.cliente || "", fecha: new Date().toISOString() });
+        caja.movimientos.push({ tipo: "transferencia", monto, motivo: `Abono a Cuenta Diferida — ${deuda.cliente}`, banco, comprobante, remitente: deuda.cliente || "", fecha: new Date().toISOString() });
       } else {
-        caja.movimientos.push({ tipo: "ingreso", monto, motivo: `Abono deuda efectivo — ${deuda.cliente}`, fecha: new Date().toISOString() });
+        caja.movimientos.push({ tipo: "ingreso", monto, motivo: `Abono Efectivo Deuda — ${deuda.cliente}`, fecha: new Date().toISOString() });
       }
       await cajaRef.update(caja);
     }
@@ -580,7 +572,7 @@ app.post('/deudas/pagar', async (req, res) => {
       productos: deuda.productos || []
     });
   } catch (err) {
-    res.status(500).json({ error: "Error al abonar" });
+    res.status(500).json({ error: "Fallo crítico al asentar amortización" });
   }
 });
 
@@ -588,7 +580,7 @@ app.put('/deudas/:id', async (req, res) => {
   try {
     const docRef = db.collection('deudas').doc(req.params.id);
     const doc    = await docRef.get();
-    if (!doc.exists) return res.status(404).json({ error: "Deuda no encontrada" });
+    if (!doc.exists) return res.status(404).json({ error: "Cuenta no encontrada" });
 
     const deuda = doc.data();
     if (req.body.cliente   !== undefined) deuda.cliente   = req.body.cliente;
@@ -603,7 +595,7 @@ app.put('/deudas/:id', async (req, res) => {
     await docRef.update(deuda);
     res.json({ ok: true, deuda: { _id: docRef.id, ...deuda } });
   } catch (err) {
-    res.status(500).json({ error: "Error al editar deuda" });
+    res.status(500).json({ error: "Fallo técnico al editar balance de deuda" });
   }
 });
 
@@ -612,15 +604,15 @@ app.delete('/deudas/:id', async (req, res) => {
     await db.collection('deudas').doc(req.params.id).delete();
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Error al eliminar" });
+    res.status(500).json({ error: "Error de borrado" });
   }
 });
 
-// ================== CAJA ==================
+// --- ENDPOINTS: GESTIÓN DE CONTROL DE FLUIDO EN CAJA ---
 app.post('/caja/abrir', async (req, res) => {
   try {
     const monto = Number(req.body.monto);
-    if (!monto || monto <= 0) return res.json({ error: "Monto inválido" });
+    if (!monto || monto <= 0) return res.json({ error: "Capital inicial de apertura no válido" });
 
     const abiertaSnapshot = await db.collection('cajas').where('activa', '==', true).get();
     if (!abiertaSnapshot.empty) {
@@ -630,11 +622,11 @@ app.post('/caja/abrir', async (req, res) => {
     await db.collection('cajas').add({
       apertura: monto, ingresos: 0, gastos: 0, activa: true,
       horaApertura: new Date().toISOString(),
-      movimientos: [{ tipo: "inicio", monto, motivo: "Apertura de caja", fecha: new Date().toISOString() }]
+      movimientos: [{ tipo: "inicio", monto, motivo: "Apertura operativa de caja", fecha: new Date().toISOString() }]
     });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Error al abrir caja" });
+    res.status(500).json({ error: "Error crítico al perturbar estado de caja" });
   }
 });
 
@@ -666,13 +658,13 @@ app.get('/caja', async (req, res) => {
 app.post('/caja/gasto', async (req, res) => {
   try {
     const snapshot = await db.collection('cajas').where('activa', '==', true).get();
-    if (snapshot.empty) return res.json({ error: "Caja no abierta" });
+    if (snapshot.empty) return res.json({ error: "Ninguna terminal de caja se encuentra activa" });
 
     const docRef = snapshot.docs[0].ref;
     const caja   = snapshot.docs[0].data();
     const monto  = Number(req.body.monto || 0);
-    const motivo = req.body.motivo || "Sin motivo";
-    if (!monto || monto <= 0) return res.json({ error: "Monto inválido" });
+    const motivo = req.body.motivo || "Gasto misceláneo de caja";
+    if (!monto || monto <= 0) return res.json({ error: "Importe inválido" });
 
     caja.gastos = (caja.gastos || 0) + monto;
     if (!caja.movimientos) caja.movimientos = [];
@@ -680,25 +672,25 @@ app.post('/caja/gasto', async (req, res) => {
     await docRef.update(caja);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Error al registrar gasto" });
+    res.status(500).json({ error: "Error de red al consolidar débito" });
   }
 });
 
 app.post('/caja/transferencia', async (req, res) => {
   try {
     const snapshot = await db.collection('cajas').where('activa', '==', true).get();
-    if (snapshot.empty) return res.json({ error: "Caja no abierta" });
+    if (snapshot.empty) return res.json({ error: "La caja se encuentra cerrada" });
 
     const docRef = snapshot.docs[0].ref;
     const caja   = snapshot.docs[0].data();
     const monto  = Number(req.body.monto || 0);
-    if (!monto || monto <= 0) return res.json({ error: "Monto inválido" });
+    if (!monto || monto <= 0) return res.json({ error: "Importe bancario fuera de rango" });
 
     caja.ingresos = (caja.ingresos || 0) + monto;
     if (!caja.movimientos) caja.movimientos = [];
     caja.movimientos.push({
       tipo: "transferencia", monto,
-      motivo: `Transferencia ${req.body.banco || ""}`,
+      motivo: `Ingreso directo por transferencia - ${req.body.banco || ""}`,
       banco: req.body.banco || "", cuenta: req.body.cuenta || "",
       comprobante: req.body.comprobante || "", remitente: req.body.remitente || "",
       fecha: new Date().toISOString()
@@ -706,14 +698,14 @@ app.post('/caja/transferencia', async (req, res) => {
     await docRef.update(caja);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Error al registrar transferencia" });
+    res.status(500).json({ error: "Fallo de comunicación en asiento bancario" });
   }
 });
 
 app.post('/caja/cerrar', async (req, res) => {
   try {
     const snapshot = await db.collection('cajas').where('activa', '==', true).get();
-    if (snapshot.empty) return res.json({ error: "Caja no abierta" });
+    if (snapshot.empty) return res.json({ error: "No hay actividades vigentes en caja" });
 
     const docRef = snapshot.docs[0].ref;
     const caja   = snapshot.docs[0].data();
@@ -733,20 +725,20 @@ app.post('/caja/cerrar', async (req, res) => {
     caja.cierre     = real;
     caja.horaCierre = new Date().toISOString();
     caja.dejado     = dejar;
-    caja.movimientos.push({ tipo: "cierre", monto: real, motivo: `Cierre de caja | Dejado: $${dejar}`, fecha: new Date().toISOString() });
+    caja.movimientos.push({ tipo: "cierre", monto: real, motivo: `Cierre contable de jornada | Fondo retenido: $${dejar}`, fecha: new Date().toISOString() });
     await docRef.update(caja);
 
     if (dejar > 0) {
       await db.collection('cajas').add({
         apertura: dejar, ingresos: 0, gastos: 0, activa: true,
         horaApertura: new Date().toISOString(),
-        movimientos: [{ tipo: "inicio", monto: dejar, motivo: "Apertura automática", fecha: new Date().toISOString() }]
+        movimientos: [{ tipo: "inicio", monto: dejar, motivo: "Fondo de apertura automático poscierre", fecha: new Date().toISOString() }]
       });
     }
 
     res.json({ apertura: caja.apertura, ingresos: caja.ingresos, transferencias, gastos: caja.gastos, esperado, real, diferencia, dejar, fechaApertura: caja.horaApertura, fechaCierre: caja.horaCierre, gastosLista, transferenciasList });
   } catch (err) {
-    res.status(500).json({ error: "Error al cerrar caja" });
+    res.status(500).json({ error: "Fallo general en protocolo de arqueo" });
   }
 });
 
@@ -777,11 +769,11 @@ app.get('/caja/historial', async (req, res) => {
     res.json(historial);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Error al obtener historial" });
+    res.status(500).json({ error: "Fallo de lectura en base histórica" });
   }
 });
 
-// ================== ANÁLISIS ==================
+// --- ENDPOINT: MÓDULO INTELIGENCIA DE NEGOCIO / ANÁLISIS ---
 app.get('/analisis', async (req, res) => {
   try {
     const snapshot = await db.collection('ventas').get();
@@ -806,10 +798,11 @@ app.get('/analisis', async (req, res) => {
       if (Array.isArray(v.productos)) {
         v.productos.forEach(p => {
           const nombre   = p.nombre   || "Sin nombre";
-          const cantidad = Number(p.cantidad || 1);
+          const cantidad = Number(p.amount || p.cantidad || 1);
           const precio   = Number(p.precio   || 0);
-          const costo    = Number(p.costo    || 0);
+          const costo    = Number(p.precioCosto || p.costo || 0);
           const ganancia = (precio - costo) * cantidad;
+          
           if (!productos[nombre]) productos[nombre] = { nombre, vendidos: 0, ganancia: 0 };
           productos[nombre].vendidos += cantidad;
           productos[nombre].ganancia += ganancia;
@@ -817,35 +810,23 @@ app.get('/analisis', async (req, res) => {
       }
     });
 
-    const lista         = Object.values(productos);
-    const masVendidos   = [...lista].sort((a, b) => b.vendidos  - a.vendidos ).slice(0, 5);
-    const menosVendidos = [...lista].sort((a, b) => a.vendidos  - b.vendidos ).slice(0, 5);
-    const masGanancia   = [...lista].sort((a, b) => b.ganancia  - a.ganancia ).slice(0, 5);
-    const menosGanancia = [...lista].sort((a, b) => a.ganancia  - b.ganancia ).slice(0, 5);
+    const lista        = Object.values(productos);
+    const masVendidos  = [...lista].sort((a, b) => b.vendidos  - a.vendidos ).slice(0, 5);
+    const menosVendidos= [...lista].sort((a, b) => a.vendidos  - b.vendidos ).slice(0, 5);
+    const masGanancia  = [...lista].sort((a, b) => b.ganancia  - a.ganancia ).slice(0, 5);
+    const menosGanancia= [...lista].sort((a, b) => a.ganancia  - b.ganancia ).slice(0, 5);
     const clientesUnicos = new Set(ventas.map(v => v.cedula || v.cliente)).size;
 
-    res.json({ 
-      ventas, 
-      totalGeneral, 
-      efectivo, 
-      credito, 
-      transferencia, 
-      clientes: clientesUnicos, 
-      porDia, 
-      porMes,
-      masVendidos,
-      menosVendidos,
-      masGanancia,
-      menosGanancia
-    });
+    res.json({ ventas, totalGeneral, efectivo, credito, transferencia, clientes: clientesUnicos, porDia, porMes, masVendidos, menosVendidos, masGanancia, menosGanancia });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error en análisis" });
+    res.status(500).json({ error: "Fallo al procesar métricas gerenciales de auditoría" });
   }
 });
 
-// ================== LEVANTAR SERVIDOR (OBLIGATORIO PARA RENDER) ==================
+// =========================================================================
+// 4. INICIALIZACIÓN DE ESCUCHA INTERNA (BIND GLOBLAL PARA CLOUD HOSTING)
+// =========================================================================
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor corriendo exitosamente en el puerto ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Motor NEXUS encendido en el puerto base asignado: ${PORT}`);
 });
