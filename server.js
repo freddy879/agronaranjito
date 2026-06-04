@@ -31,20 +31,25 @@ try {
 const db = admin.firestore();
 
 // =========================================================================
-// 2. CONFIGURACIÓN DE NODEMAILER CON GMAIL (OPTIMIZADO PARA RENDER)
+// 2. CONFIGURACIÓN DE NODEMAILER CON GMAIL (FORZANDO IPV4 PARA RENDER)
 // =========================================================================
 let transporter = null;
 if (process.env.GMAIL_USER && process.env.GMAIL_PASS) {
   transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 465,
-    secure: true, // true para usar SSL directo en el puerto 465
+    secure: true, // SSL directo
     auth: {
       user: process.env.GMAIL_USER,
       pass: process.env.GMAIL_PASS
     },
+    // Forzamos a Node a resolver la conexión usando familias de IP tradicionales (IPv4)
+    // Esto evita el error ENETUNREACH de IPv6 en los servidores de Render
+    connectionTimeout: 10000, // 10 segundos maximo de espera
+    greetingTimeout: 10000,
+    dnsTimeout: 10000,
+    family: 4, // <-- OBLIGA A USAR IPV4
     tls: {
-      // Evita rechazos de conexión por resolución DNS estricta en contenedores de Render
       rejectUnauthorized: false
     }
   });
