@@ -817,21 +817,35 @@ app.get('/analisis', async (req, res) => {
       }
     });
 
-    const lista        = Object.values(productos);
-    const masVendidos  = [...lista].sort((a, b) => b.vendidos  - a.vendidos ).slice(0, 5);
-    const menosVendidos= [...lista].sort((a, b) => a.vendidos  - b.vendidos ).slice(0, 5);
-    const masGanancia  = [...lista].sort((a, b) => b.ganancia  - a.ganancia ).slice(0, 5);
-    const menosGanancia= [...lista].sort((a, b) => a.ganancia  - b.ganancia ).slice(0, 5);
+    const lista         = Object.values(productos);
+    const masVendidos   = [...lista].sort((a, b) => b.vendidos  - a.vendidos ).slice(0, 5);
+    const menosVendidos = [...lista].sort((a, b) => a.vendidos  - b.vendidos ).slice(0, 5);
+    const masGanancia   = [...lista].sort((a, b) => b.ganancia  - a.ganancia ).slice(0, 5);
+    const menosGanancia = [...lista].sort((a, b) => a.ganancia  - b.ganancia ).slice(0, 5);
     const clientesUnicos = new Set(ventas.map(v => v.cedula || v.cliente)).size;
 
-    res.json({ ventas, totalGeneral, efectivo, credito, transferencia, clientes: clientesUnicos, porDia, porMes, masVendidos, menosVendidos, masGanancia, menosGanancia });
+    res.json({ 
+      ventas, 
+      totalGeneral, 
+      efectivo, 
+      credito, 
+      transferencia, 
+      clientes: clientesUnicos, 
+      porDia, 
+      porMes,
+      masVendidos,
+      menosVendidos,
+      masGanancia,
+      menosGanancia
+    });
   } catch (err) {
-    res.status(500).json({ error: "Error al obtener análisis" });
+    console.error(err);
+    res.status(500).json({ error: "Error en análisis" });
   }
 });
 
-// ================== SERVER ==================
-const PORT = process.env.PORT || 3000;
+// ================== LEVANTAR SERVIDOR (OBLIGATORIO PARA RENDER) ==================
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log("🚀 Servidor corriendo en el puerto " + PORT);
+  console.log(`🚀 Servidor corriendo exitosamente en el puerto ${PORT}`);
 });
