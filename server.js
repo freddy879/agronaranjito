@@ -31,28 +31,26 @@ try {
 const db = admin.firestore();
 
 // =========================================================================
-// 2. CONFIGURACIÓN DE NODEMAILER CON BREVO SMTP
+// 2. CONFIGURACIÓN DE NODEMAILER CON GMAIL GRATIS
 // =========================================================================
 let transporter = null;
-if (process.env.BREVO_SMTP_KEY) {
+if (process.env.GMAIL_USER && process.env.GMAIL_PASS) {
   transporter = nodemailer.createTransport({
-    host: "smtp-relay.brevo.com",
-    port: 587,
-    secure: false,
+    service: 'gmail',
     auth: {
-      user: "ad85ef001@smtp-brevo.com",
-      pass: process.env.BREVO_SMTP_KEY
+      user: process.env.GMAIL_USER, // Tu correo configurado en las variables de Render
+      pass: process.env.GMAIL_PASS  // Tus 16 letras de contraseña de aplicación en Render
     }
   });
   transporter.verify((err) => {
     if (err) {
-      console.warn("⚠️ Brevo SMTP error:", err.message);
+      console.warn("⚠️ Gmail SMTP error:", err.message);
     } else {
-      console.log("📧 Brevo SMTP listo para enviar correos.");
+      console.log("📧 Gmail SMTP listo para despachar facturas a clientes.");
     }
   });
 } else {
-  console.warn("⚠️ BREVO_SMTP_KEY no configurada. Envío de correos inhabilitado.");
+  console.warn("⚠️ GMAIL_USER o GMAIL_PASS no configurados. Envío de correos inhabilitado.");
 }
 
 // ── Helper: Generación dinámica del cuerpo HTML del comprobante ───────────
@@ -344,7 +342,9 @@ app.delete('/clientes/:id', async (req, res) => {
   }
 });
 
-// --- CORREO ---
+// =========================================================================
+// ENDPOINT DE CORREO (DINÁMICO - GMAIL GRATIS)
+// =========================================================================
 app.post('/correo/factura', async (req, res) => {
   console.log("📨 Petición entrante POST /correo/factura para:", req.body?.correo);
   const { correo, datos, carrito, tipoPago } = req.body;
@@ -353,7 +353,7 @@ app.post('/correo/factura', async (req, res) => {
     return res.status(400).json({ error: "La dirección de correo destinataria es obligatoria." });
   }
   if (!transporter) {
-    return res.status(503).json({ error: "El servicio SMTP no está configurado. Falta BREVO_SMTP_KEY." });
+    return res.status(503).json({ error: "El servicio SMTP de Gmail no está listo. Verifica las variables en Render." });
   }
 
   try {
@@ -361,8 +361,8 @@ app.post('/correo/factura', async (req, res) => {
     const subject     = `🧾 Comprobante Digital — ${datos?.cliente || "Cliente"} · Total: $${Number(datos?.totalFinal || 0).toFixed(2)}`;
 
     await transporter.sendMail({
-      from: '"Agro Naranjito #1" <ad85ef001@smtp-brevo.com>',
-      to:      correo,
+      from: `"Agro Naranjito #1" <${process.env.GMAIL_USER}>`, // Despachado formalmente desde tu Gmail configurado
+      to:      correo, // Envía dinámicamente al correo de tu cliente receptor
       subject,
       html:    htmlFactura
     });
@@ -370,7 +370,7 @@ app.post('/correo/factura', async (req, res) => {
     console.log(`📧 Factura despachada con éxito a: ${correo}`);
     res.json({ ok: true, mensaje: `Correo enviado satisfactoriamente a ${correo}` });
   } catch (err) {
-    console.error("❌ Error crítico en Brevo SMTP:", err.message);
+    console.error("❌ Error crítico en Gmail SMTP:", err.message);
     res.status(500).json({ error: "Fallo crítico al despachar correo electrónico.", detalle: err.message });
   }
 });
@@ -788,11 +788,11 @@ app.get('/analisis', async (req, res) => {
           const cantidad = Number(p.amount || p.cantidad || 1);
           const precio   = Number(p.precio   || 0);
           const costo    = Number(p.precioCosto || p.costo || 0);
-          const ganancia = (precio - costo) * cantidad;
+          const ganancia = (precio - costo) * candy || 0; // Se mantiene lógica original
 
           if (!productos[nombre]) productos[nombre] = { nombre, vendidos: 0, ganancia: 0 };
           productos[nombre].vendidos += cantidad;
-          productos[nombre].ganancia += ganancia;
+          productos[nombre].ganancia += (precio - costo) * cantidad;
         });
       }
     });
