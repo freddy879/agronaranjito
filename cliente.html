@@ -9,16 +9,7 @@
     .sidebar a { display:block; color:white; padding:10px; text-decoration:none; margin-top:10px; border-radius:8px; }
     .sidebar a:hover { background:#485460; }
     .main { flex:1; }
-    .header { background:#ff3f34; color:white; padding:15px; font-size:20px; display:flex; align-items:center; justify-content:space-between; }
-    .btn-cerrar {
-      display:flex; align-items:center; gap:6px;
-      background:rgba(0,0,0,0.2); color:white;
-      border:1px solid rgba(255,255,255,0.3);
-      padding:7px 14px; border-radius:8px;
-      font-size:14px; font-family:'Segoe UI'; cursor:pointer;
-      transition:background 0.2s;
-    }
-    .btn-cerrar:hover { background:rgba(0,0,0,0.35); }
+    .header { background:#ff3f34; color:white; padding:15px; font-size:20px; }
     .container { padding:20px; }
     .card { background:white; padding:20px; border-radius:12px; margin-bottom:20px; box-shadow:0 3px 10px rgba(0,0,0,0.1); }
     input { padding:10px; margin:5px; border-radius:8px; border:1px solid #ccc; width:200px; }
@@ -43,10 +34,7 @@
 
 <div class="main">
 
-  <div class="header">
-    <span>👤 Clientes</span>
-    <button class="btn-cerrar" onclick="cerrarSesion()">🔒 Cerrar sesión</button>
-  </div>
+  <div class="header">👤 Clientes</div>
 
   <div class="container">
 
@@ -70,7 +58,7 @@
             <th>Nombre</th>
             <th>Cédula</th>
             <th>Teléfono</th>
-            <th>correo</th>
+            <th>Correo</th>
             <th>Acción</th>
           </tr>
         </thead>
@@ -88,13 +76,7 @@ const API = window.location.origin.includes("localhost")
   ? "http://localhost:3000"
   : "https://agronaranjito-1.onrender.com";
 
-function cerrarSesion() {
-  if (confirm("¿Cerrar sesión?")) {
-    sessionStorage.removeItem('nexus_sesion');
-    window.location.href = 'longi.html';
-  }
-}
-
+//======Cargar======
 async function cargar(){
   try{
     const res = await fetch(API + '/clientes');
@@ -127,8 +109,9 @@ async function cargar(){
     alert("❌ No conecta con el servidor");
   }
 }
-
+// ================= GUARDAR =================
 async function guardar(){
+
   if(!nombre.value || !cedula.value){
     return alert("Completa datos");
   }
@@ -151,8 +134,11 @@ async function guardar(){
 
   cargar();
 }
+  
 
+// ================= EDITAR =================
 async function editar(id,nombreActual,cedulaActual,telefonoActual,correoActual){
+
   let n = prompt("Nombre:",nombreActual);
   if(n===null) return;
 
@@ -168,15 +154,22 @@ async function editar(id,nombreActual,cedulaActual,telefonoActual,correoActual){
   await fetch(API + '/clientes/editar', {
     method:'PUT',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ id, nombre:n, cedula:c, telefono:t, correo:e })
+    body: JSON.stringify({
+      id,
+      nombre:n,
+      cedula:c,
+      telefono:t,
+      correo:e
+    })
   });
 
   cargar();
 }
-
+// ================= ELIMINAR =================
 async function eliminar(id){
+
   let pass = prompt("Contraseña");
-  if(pass !== "agro123") return;
+  if(pass !== "bellita123") return;
 
   if(!confirm("¿Eliminar?")) return;
 
