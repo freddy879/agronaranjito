@@ -355,16 +355,16 @@ app.post('/correo/factura', async (req, res) => {
   try {
     const htmlFactura = generarHTMLCorreo(datos, carrito, tipoPago);
     const subject     = `🧾 Comprobante Digital — ${datos?.cliente || "Cliente"} · Total: $${Number(datos?.totalFinal || 0).toFixed(2)}`;
-
+    
     const { error } = await resend.emails.send({
-      // Mientras no tengas dominio propio verificado en Resend, usa este remitente:
       from: "Agro Naranjito #1 <onboarding@resend.dev>",
-      // Cuando tengas tu dominio verificado, cambia a algo como:
-      // from: "Agro Naranjito #1 <factura@tudominio.com>",
-      to:      correo,
+      to: "fdominguezq@unemi.edu.ec",
+      reply_to: correo,
       subject,
-      html:    htmlFactura
+      html: htmlFactura
     });
+
+ 
 
     if (error) {
       console.error("❌ Resend error:", error);
