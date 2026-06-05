@@ -191,36 +191,20 @@ app.get('/health', (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// NUEVOS ENDPOINTS: MOVIMIENTOS DE INVENTARIO (CONEXIÓN FIRESTORE)
+// Helper interno: registrar un movimiento de inventario en Firestore
 // ─────────────────────────────────────────────────────────────────────────
-app.get('/movimientos-inventario', async (req, res) => {
-  try {
-    const snapshot = await db.collection('movimientos-inventario').get();
-    res.json(mapearDocs(snapshot));
-  } catch (err) {
-    console.error("Error al obtener movimientos contables:", err);
-    res.status(500).json([]);
-  }
-});
-
-app.post('/movimientos-inventario', async (req, res) => {
-  try {
-    const nuevoMovimiento = {
-      tipo: req.body.tipo || "entrada",
-      codigo: req.body.codigo || "-",
-      nombre: req.body.nombre || "Sin Nombre",
-      cantidad: Number(req.body.cantidad || 0),
-      fecha: req.body.fecha || new Date().toISOString().split('T')[0],
-      hora: req.body.hora || new Date().toLocaleTimeString('es-EC', { hour12: false }),
-      motivo: req.body.motivo || ""
-    };
-    await db.collection('movimientos-inventario').add(nuevoMovimiento);
-    res.json({ ok: true });
-  } catch (err) {
-    console.error("Error al asentar movimiento:", err);
-    res.status(500).json({ error: "Error interno al guardar historial de auditoría" });
-  }
-});
+async function registrarMovimiento({ tipo, codigo, nombre, cantidad, motivo }) {
+  const ahora = new Date();
+  await db.collection('movimientos-inventario').add({
+    tipo:     tipo     || "entrada",
+    codigo:   codigo   || "-",
+    nombre:   nombre   || "Sin Nombre",
+    cantidad: Number(cantidad || 0),
+    fecha:    ahora.toISOString().split('T')[0],
+    hora:     ahora.toLocaleTimeString('es-EC', { hour12: false }),
+    motivo:   motivo   || "Actualización manual"
+  });
+}
 // ─────────────────────────────────────────────────────────────────────────
 
 app.get('/productos', async (req, res) => {
@@ -278,6 +262,16 @@ app.put('/productos/agregar/:id', async (req, res) => {
     if (req.body.caducidad !== undefined) updates.caducidad = req.body.caducidad;
 
     await docRef.update(updates);
+
+    // ── Auditoría: registrar entrada de stock ──────────────────────────────
+    await registrarMovimiento({
+      tipo:     "entrada",
+      codigo:   p.codigo || "-",
+      nombre:   p.nombre || "Sin Nombre",
+      cantidad: Number(req.body.cantidad),
+      motivo:   req.body.motivo || "Reabastecimiento de bodega"
+    });
+
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Error interno al reaprovisionar stock" });
@@ -476,6 +470,21 @@ app.post('/ventas', async (req, res) => {
     };
 
     await db.collection('ventas').add(nuevaVenta);
+
+    // ── Auditoría: registrar salida por cada producto vendido ──────────────
+    if (Array.isArray(req.body.productos)) {
+      const cliente = req.body.cliente || "Consumidor Final";
+      for (const p of req.body.productos) {
+        await registrarMovimiento({
+          tipo:     "salida",
+          codigo:   p.codigo || "-",
+          nombre:   p.nombre || "Sin Nombre",
+          cantidad: Number(p.amount || p.cantidad || 1),
+          motivo:   `Venta — Cliente: ${cliente}`
+        });
+      }
+    }
+    // ──────────────────────────────────────────────────────────────────────
 
     const cajasSnapshot = await db.collection('cajas').where('activa', '==', true).get();
     if (!cajasSnapshot.empty) {
