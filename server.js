@@ -38,7 +38,7 @@ if (process.env.BREVO_SMTP_KEY) {
   transporter = nodemailer.createTransport({
     host: 'smtp-relay.brevo.com',
     port: 465,
-    secure: true, // true para usar SSL directo en el puerto 465
+    secure: true,
     auth: {
       user: 'ad85ef001@smtp-brevo.com',
       pass: process.env.BREVO_SMTP_KEY
@@ -205,7 +205,6 @@ async function registrarMovimiento({ tipo, codigo, nombre, cantidad, motivo }) {
     motivo:   motivo   || "Actualización manual"
   });
 }
-// ─────────────────────────────────────────────────────────────────────────
 
 app.get('/productos', async (req, res) => {
   try {
@@ -225,7 +224,7 @@ app.post('/productos', async (req, res) => {
       precioCompra: Number(req.body.precioCompra || 0),
       precioVenta: Number(req.body.precioVenta || 0),
       stock: Number(req.body.stock || 0),
-      caducidad: req.body.caducidad ? req.body.caducidad : null 
+      caducidad: req.body.caducidad ? req.body.caducidad : null
     };
     await db.collection('productos').add(nuevoProducto);
     res.json({ ok: true });
@@ -257,13 +256,12 @@ app.put('/productos/agregar/:id', async (req, res) => {
     const doc = await docRef.get();
     if (!doc.exists) return res.status(404).json({ error: "Documento objetivo inexistente" });
     const p = doc.data();
-    
+
     const updates = { stock: (p.stock || 0) + Number(req.body.cantidad) };
     if (req.body.caducidad !== undefined) updates.caducidad = req.body.caducidad;
 
     await docRef.update(updates);
 
-    // ── Auditoría: registrar entrada de stock ──────────────────────────────
     await registrarMovimiento({
       tipo:     "entrada",
       codigo:   p.codigo || "-",
@@ -303,10 +301,9 @@ app.delete('/productos/:id', async (req, res) => {
 });
 
 // =========================================================================
-// NUEVOS ENDPOINTS: HISTORIAL DE MOVIMIENTOS DE INVENTARIO
+// HISTORIAL DE MOVIMIENTOS DE INVENTARIO
 // =========================================================================
 
-// 1. OBTENER todos los movimientos (GET)
 app.get('/movimientos-inventario', async (req, res) => {
   try {
     const snapshot = await db.collection('movimientos-inventario').orderBy('fecha', 'desc').get();
@@ -317,17 +314,16 @@ app.get('/movimientos-inventario', async (req, res) => {
   }
 });
 
-// 2. REGISTRAR un nuevo movimiento (POST)
 app.post('/movimientos-inventario', async (req, res) => {
   try {
     const nuevoMovimiento = {
-      tipo: req.body.tipo || "entrada", // "entrada" o "salida"
-      codigo: req.body.codigo || "-",
-      nombre: req.body.nombre || "Sin Nombre",
+      tipo:     req.body.tipo     || "entrada",
+      codigo:   req.body.codigo   || "-",
+      nombre:   req.body.nombre   || "Sin Nombre",
       cantidad: Number(req.body.cantidad || 0),
-      fecha: req.body.fecha || new Date().toISOString().split('T')[0],
-      hora: req.body.hora || new Date().toLocaleTimeString('es-EC', { hour12: false }),
-      motivo: req.body.motivo || "Actualización manual"
+      fecha:    req.body.fecha    || new Date().toISOString().split('T')[0],
+      hora:     req.body.hora     || new Date().toLocaleTimeString('es-EC', { hour12: false }),
+      motivo:   req.body.motivo   || "Actualización manual"
     };
 
     await db.collection('movimientos-inventario').add(nuevoMovimiento);
@@ -338,18 +334,22 @@ app.post('/movimientos-inventario', async (req, res) => {
   }
 });
 
+// =========================================================================
+// CLIENTES
+// =========================================================================
+
 app.post('/clientes', async (req, res) => {
   try {
     const nuevoCliente = {
-      nombre:     req.body.nombre    || "Sin Nombre",
-      cedula:     req.body.cedula    || "Sin Cédula",
-      direccion:  req.body.direccion || "",
-      telefono:   req.body.telefono  || "",
-      correo:     req.body.correo    || "",
-      deudaTotal: Number(req.body.deudaTotal  || 0),
+      nombre:      req.body.nombre     || "Sin Nombre",
+      cedula:      req.body.cedula     || "Sin Cédula",
+      direccion:   req.body.direccion  || "",
+      telefono:    req.body.telefono   || "",
+      correo:      req.body.correo     || "",
+      deudaTotal:  Number(req.body.deudaTotal  || 0),
       deudaActual: Number(req.body.deudaActual || 0),
-      estado: req.body.estado || "normal",
-      fecha: req.body.fecha ? new Date(req.body.fecha).toISOString() : new Date().toISOString()
+      estado:      req.body.estado     || "normal",
+      fecha:       req.body.fecha ? new Date(req.body.fecha).toISOString() : new Date().toISOString()
     };
     const resultado = await db.collection('clientes').add(nuevoCliente);
     res.json({ ok: true, cliente: { _id: resultado.id, ...nuevoCliente } });
@@ -431,7 +431,10 @@ app.delete('/clientes/:id', async (req, res) => {
   }
 });
 
-// --- CORREO ---
+// =========================================================================
+// CORREO
+// =========================================================================
+
 app.post('/correo/factura', async (req, res) => {
   console.log("📨 Petición entrante POST /correo/factura para:", req.body?.correo);
   const { correo, datos, carrito, tipoPago } = req.body;
@@ -448,7 +451,7 @@ app.post('/correo/factura', async (req, res) => {
     const subject     = `🧾 Comprobante Digital — ${datos?.cliente || "Cliente"} · Total: $${Number(datos?.totalFinal || 0).toFixed(2)}`;
 
     await transporter.sendMail({
-      from: '"Agro Naranjito #1" <ad85ef001@smtp-brevo.com>',
+      from:    '"Agro Naranjito #1" <ad85ef001@smtp-brevo.com>',
       to:      correo,
       subject,
       html:    htmlFactura
@@ -462,6 +465,10 @@ app.post('/correo/factura', async (req, res) => {
   }
 });
 
+// =========================================================================
+// VENTAS
+// =========================================================================
+
 app.post('/ventas', async (req, res) => {
   try {
     const nuevaVenta = {
@@ -471,7 +478,6 @@ app.post('/ventas', async (req, res) => {
 
     await db.collection('ventas').add(nuevaVenta);
 
-    // ── Auditoría: registrar salida por cada producto vendido ──────────────
     if (Array.isArray(req.body.productos)) {
       const cliente = req.body.cliente || "Consumidor Final";
       for (const p of req.body.productos) {
@@ -484,7 +490,6 @@ app.post('/ventas', async (req, res) => {
         });
       }
     }
-    // ──────────────────────────────────────────────────────────────────────
 
     const cajasSnapshot = await db.collection('cajas').where('activa', '==', true).get();
     if (!cajasSnapshot.empty) {
@@ -499,14 +504,14 @@ app.post('/ventas', async (req, res) => {
           caja.movimientos.push({ tipo: "ingreso", monto: req.body.total, motivo: `Venta directa efectivo - Cliente: ${req.body.cliente}`, fecha: new Date().toISOString() });
         } else {
           caja.movimientos.push({
-            tipo: "transferencia",
-            monto: Number(req.body.total || 0),
-            motivo: `Liquidación por Transferencia — ${req.body.banco || ""}`,
-            banco: req.body.banco || "",
-            cuenta: req.body.cuenta || "",
+            tipo:        "transferencia",
+            monto:       Number(req.body.total || 0),
+            motivo:      `Liquidación por Transferencia — ${req.body.banco || ""}`,
+            banco:       req.body.banco       || "",
+            cuenta:      req.body.cuenta      || "",
             comprobante: req.body.comprobante || "",
-            remitente: req.body.cliente || "",
-            fecha: new Date().toISOString()
+            remitente:   req.body.cliente     || "",
+            fecha:       new Date().toISOString()
           });
         }
         await cajaRef.update(caja);
@@ -584,6 +589,10 @@ app.delete('/ventas/dia', async (req, res) => {
   }
 });
 
+// =========================================================================
+// DEUDAS
+// =========================================================================
+
 app.get('/deudas', async (req, res) => {
   try {
     const snapshot = await db.collection('deudas').orderBy('fecha', 'desc').get();
@@ -652,14 +661,14 @@ app.post('/deudas/pagar', async (req, res) => {
     }
 
     res.json({
-      cliente:  deuda.cliente,
-      cedula:   deuda.cedula   || "-",
-      celular:  deuda.celular  || "",
+      cliente:   deuda.cliente,
+      cedula:    deuda.cedula    || "-",
+      celular:   deuda.celular   || "",
       monto,
-      total:    deuda.total,
-      restante: deuda.total - deuda.pagado,
-      pagado:   deuda.pagado,
-      pagos:    deuda.pagos    || [],
+      total:     deuda.total,
+      restante:  deuda.total - deuda.pagado,
+      pagado:    deuda.pagado,
+      pagos:     deuda.pagos    || [],
       productos: deuda.productos || []
     });
   } catch (err) {
@@ -699,6 +708,10 @@ app.delete('/deudas/:id', async (req, res) => {
   }
 });
 
+// =========================================================================
+// CAJA — CON MOVIMIENTOS UNIFICADOS (CAJA + INVENTARIO)
+// =========================================================================
+
 app.post('/caja/abrir', async (req, res) => {
   try {
     const monto = Number(req.body.monto);
@@ -710,9 +723,12 @@ app.post('/caja/abrir', async (req, res) => {
     }
 
     await db.collection('cajas').add({
-      apertura: monto, ingresos: 0, gastos: 0, activa: true,
+      apertura:     monto,
+      ingresos:     0,
+      gastos:       0,
+      activa:       true,
       horaApertura: new Date().toISOString(),
-      movimientos: [{ tipo: "inicio", monto, motivo: "Apertura operativa de caja", fecha: new Date().toISOString() }]
+      movimientos:  [{ tipo: "inicio", monto, motivo: "Apertura operativa de caja", fecha: new Date().toISOString() }]
     });
     res.json({ ok: true });
   } catch (err) {
@@ -720,27 +736,100 @@ app.post('/caja/abrir', async (req, res) => {
   }
 });
 
+// ── GET /caja — Jornada activa con movimientos unificados ─────────────────
 app.get('/caja', async (req, res) => {
   try {
     const snapshot = await db.collection('cajas').where('activa', '==', true).get();
-    if (snapshot.empty) return res.json({ apertura: 0, ingresos: 0, gastos: 0, transferencias: 0, saldo: 0 });
+    if (snapshot.empty) {
+      return res.json({ apertura: 0, ingresos: 0, gastos: 0, transferencias: 0, saldo: 0 });
+    }
 
     const caja = snapshot.docs[0].data();
     let transferencias = 0;
-    const gastosLista = [], transferenciasList = [];
+    const gastosLista        = [];
+    const transferenciasList = [];
+    const movimientosCaja    = [];
 
     (caja.movimientos || []).forEach(m => {
-      if (m.tipo === "transferencia") { transferencias += m.monto; transferenciasList.push(m); }
-      if (m.tipo === "gasto") gastosLista.push(m);
+      if (m.tipo === "transferencia") {
+        transferencias += m.monto;
+        transferenciasList.push(m);
+        movimientosCaja.push({
+          tipo:         "entrada",
+          producto:     `Transferencia — ${m.banco || ""}`,
+          cantidad:     m.monto || 0,
+          fecha:        m.fecha,
+          horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
+          nota:         m.comprobante ? `Ref: ${m.comprobante}` : ""
+        });
+      }
+      if (m.tipo === "gasto") {
+        gastosLista.push(m);
+        movimientosCaja.push({
+          tipo:         "salida",
+          producto:     m.motivo || "Gasto de caja",
+          cantidad:     m.monto  || 0,
+          fecha:        m.fecha,
+          horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
+          nota:         "Egreso"
+        });
+      }
+      if (m.tipo === "ingreso") {
+        movimientosCaja.push({
+          tipo:         "entrada",
+          producto:     m.motivo || "Ingreso",
+          cantidad:     m.monto  || 0,
+          fecha:        m.fecha,
+          horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
+          nota:         "Ingreso efectivo"
+        });
+      }
+      // tipo "inicio" se omite — ya está en la tarjeta de Stock de Apertura
     });
 
+    // Traer movimientos de inventario del rango de la jornada actual
+    const apertura = new Date(caja.horaApertura).getTime();
+    const ahora    = Date.now();
+
+    const movInvSnapshot = await db.collection('movimientos-inventario')
+      .orderBy('fecha', 'desc')
+      .limit(500)
+      .get();
+
+    movInvSnapshot.forEach(doc => {
+      const m            = doc.data();
+      const fechaHoraStr = `${m.fecha}T${m.hora || "00:00:00"}`;
+      const ts           = new Date(fechaHoraStr).getTime();
+
+      if (ts >= apertura && ts <= ahora) {
+        movimientosCaja.push({
+          tipo:         m.tipo === "entrada" ? "entrada" : "salida",
+          producto:     m.nombre   || m.motivo || "Producto",
+          cantidad:     m.cantidad || 0,
+          fecha:        fechaHoraStr,
+          horaRegistro: m.hora || new Date(fechaHoraStr).toLocaleTimeString('es-EC'),
+          nota:         m.motivo   || "",
+          codigo:       m.codigo   || ""
+        });
+      }
+    });
+
+    // Ordenar por hora
+    movimientosCaja.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
     res.json({
-      apertura: caja.apertura, ingresos: caja.ingresos, transferencias,
-      gastos: caja.gastos, saldo: caja.apertura + caja.ingresos - caja.gastos,
-      horaApertura: caja.horaApertura, gastosLista, transferenciasList,
-      movimientos: caja.movimientos || []
+      apertura:          caja.apertura,
+      ingresos:          caja.ingresos,
+      transferencias,
+      gastos:            caja.gastos,
+      saldo:             caja.apertura + caja.ingresos - caja.gastos,
+      horaApertura:      caja.horaApertura,
+      gastosLista,
+      transferenciasList,
+      movimientos:       movimientosCaja
     });
   } catch (err) {
+    console.error("❌ Error al leer caja activa:", err.message);
     res.json({ apertura: 0, ingresos: 0, gastos: 0, transferencias: 0, saldo: 0 });
   }
 });
@@ -766,6 +855,46 @@ app.post('/caja/gasto', async (req, res) => {
   }
 });
 
+app.post('/caja/ingreso', async (req, res) => {
+  try {
+    const snapshot = await db.collection('cajas').where('activa', '==', true).get();
+    if (snapshot.empty) return res.json({ error: "Ninguna terminal de caja se encuentra activa" });
+
+    const docRef = snapshot.docs[0].ref;
+    const caja   = snapshot.docs[0].data();
+    const monto  = Number(req.body.monto || 0);
+    const motivo = req.body.motivo || req.body.producto || "Entrada de mercadería";
+    if (!monto || monto <= 0) return res.json({ error: "Importe inválido" });
+
+    caja.ingresos = (caja.ingresos || 0) + monto;
+    if (!caja.movimientos) caja.movimientos = [];
+    caja.movimientos.push({
+      tipo:         "ingreso",
+      monto,
+      motivo,
+      producto:     req.body.producto     || motivo,
+      cantidad:     monto,
+      nota:         req.body.nota         || "",
+      horaRegistro: req.body.horaRegistro || new Date().toLocaleTimeString('es-EC'),
+      fecha:        new Date().toISOString()
+    });
+    await docRef.update(caja);
+
+    // También asentar en movimientos-inventario para trazabilidad cruzada
+    await registrarMovimiento({
+      tipo:     "entrada",
+      codigo:   req.body.codigo  || "-",
+      nombre:   req.body.producto || motivo,
+      cantidad: monto,
+      motivo:   req.body.nota    || "Entrada registrada desde panel de flujo"
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Error al registrar ingreso de mercadería" });
+  }
+});
+
 app.post('/caja/transferencia', async (req, res) => {
   try {
     const snapshot = await db.collection('cajas').where('activa', '==', true).get();
@@ -779,11 +908,14 @@ app.post('/caja/transferencia', async (req, res) => {
     caja.ingresos = (caja.ingresos || 0) + monto;
     if (!caja.movimientos) caja.movimientos = [];
     caja.movimientos.push({
-      tipo: "transferencia", monto,
-      motivo: `Ingreso directo por transferencia - ${req.body.banco || ""}`,
-      banco: req.body.banco || "", cuenta: req.body.cuenta || "",
-      comprobante: req.body.comprobante || "", remitente: req.body.remitente || "",
-      fecha: new Date().toISOString()
+      tipo:        "transferencia",
+      monto,
+      motivo:      `Ingreso directo por transferencia - ${req.body.banco || ""}`,
+      banco:       req.body.banco       || "",
+      cuenta:      req.body.cuenta      || "",
+      comprobante: req.body.comprobante || "",
+      remitente:   req.body.remitente   || "",
+      fecha:       new Date().toISOString()
     });
     await docRef.update(caja);
     res.json({ ok: true });
@@ -820,18 +952,22 @@ app.post('/caja/cerrar', async (req, res) => {
 
     if (dejar > 0) {
       await db.collection('cajas').add({
-        apertura: dejar, ingresos: 0, gastos: 0, activa: true,
+        apertura:     dejar,
+        ingresos:     0,
+        gastos:       0,
+        activa:       true,
         horaApertura: new Date().toISOString(),
-        movimientos: [{ tipo: "inicio", monto: dejar, motivo: "Fondo de apertura automático poscierre", fecha: new Date().toISOString() }]
+        movimientos:  [{ tipo: "inicio", monto: dejar, motivo: "Fondo de apertura automático poscierre", fecha: new Date().toISOString() }]
       });
     }
 
-    res.json({ apertura: caja.apertura, ingresos: caja.ingresos, transferencias, gastos: caja.gastos, esperado, real, diferencia, dejar, fechaApertura: caja.horaApertura, fechaCierre: caja.horaCierre, gastosLista, transferenciasList });
+    res.json({ apertura: caja.apertura, ingresos: caja.ingresos, transferencias, gastos: caja.gastos, esperado, real, diferencia, dejar, fechaApertura: caja.horaApertura, fechaCierre: caja.horaCierre, gastosLista, transferenciasList, movimientos: caja.movimientos });
   } catch (err) {
     res.status(500).json({ error: "Fallo general en protocolo de arqueo" });
   }
 });
 
+// ── GET /caja/historial — Historial con movimientos unificados ────────────
 app.get('/caja/historial', async (req, res) => {
   try {
     const snapshot = await db.collection('cajas')
@@ -840,28 +976,106 @@ app.get('/caja/historial', async (req, res) => {
       .limit(50)
       .get();
 
+    // Traer todos los movimientos de inventario para cruzarlos con cada jornada
+    const movInvSnapshot = await db.collection('movimientos-inventario')
+      .orderBy('fecha', 'desc')
+      .get();
+
+    const todosMovInv = [];
+    movInvSnapshot.forEach(doc => todosMovInv.push({ _id: doc.id, ...doc.data() }));
+
     const historial = mapearDocs(snapshot).map(c => {
       let transferencias = 0;
-      const gastosLista = [], transferenciasList = [];
+      const gastosLista        = [];
+      const transferenciasList = [];
+      const movimientos        = [];
+
       (c.movimientos || []).forEach(m => {
-        if (m.tipo === "gasto")         gastosLista.push(m);
-        if (m.tipo === "transferencia") { transferenciasList.push(m); transferencias += m.monto; }
+        if (m.tipo === "gasto") {
+          gastosLista.push(m);
+          movimientos.push({
+            tipo:         "salida",
+            producto:     m.motivo || "Gasto de caja",
+            cantidad:     m.monto  || 0,
+            fecha:        m.fecha,
+            horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
+            nota:         "Egreso de caja"
+          });
+        }
+        if (m.tipo === "transferencia") {
+          transferenciasList.push(m);
+          transferencias += m.monto;
+          movimientos.push({
+            tipo:         "entrada",
+            producto:     `Transferencia — ${m.banco || ""}`,
+            cantidad:     m.monto || 0,
+            fecha:        m.fecha,
+            horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
+            nota:         m.comprobante ? `Ref: ${m.comprobante}` : ""
+          });
+        }
+        if (m.tipo === "ingreso") {
+          movimientos.push({
+            tipo:         "entrada",
+            producto:     m.motivo || "Ingreso de caja",
+            cantidad:     m.monto  || 0,
+            fecha:        m.fecha,
+            horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
+            nota:         "Ingreso efectivo"
+          });
+        }
       });
+
+      // Inyectar movimientos de inventario dentro del rango de esta jornada
+      const apertura = new Date(c.horaApertura).getTime();
+      const cierre   = new Date(c.horaCierre).getTime();
+
+      todosMovInv.forEach(m => {
+        const fechaHoraStr = `${m.fecha}T${m.hora || "00:00:00"}`;
+        const ts = new Date(fechaHoraStr).getTime();
+
+        if (ts >= apertura && ts <= cierre) {
+          movimientos.push({
+            tipo:         m.tipo === "entrada" ? "entrada" : "salida",
+            producto:     m.nombre   || m.motivo || "Producto",
+            cantidad:     m.cantidad || 0,
+            fecha:        fechaHoraStr,
+            horaRegistro: m.hora || new Date(fechaHoraStr).toLocaleTimeString('es-EC'),
+            nota:         m.motivo   || "",
+            codigo:       m.codigo   || ""
+          });
+        }
+      });
+
+      movimientos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
       return {
-        fechaApertura: c.horaApertura, fechaCierre: c.horaCierre,
-        apertura: c.apertura, ingresos: c.ingresos, transferencias,
-        gastos: c.gastos, real: c.cierre,
-        diferencia: c.cierre - (c.apertura + c.ingresos - c.gastos),
-        dejar: c.dejado || 0, gastosLista, transferenciasList
+        fechaApertura:    c.horaApertura,
+        fechaCierre:      c.horaCierre,
+        apertura:         c.apertura,
+        ingresos:         c.ingresos,
+        transferencias,
+        gastos:           c.gastos,
+        real:             c.cierre,
+        esperado:         c.apertura + c.ingresos - c.gastos,
+        diferencia:       c.cierre - (c.apertura + c.ingresos - c.gastos),
+        dejar:            c.dejado || 0,
+        gastosLista,
+        transferenciasList,
+        movimientos
       };
     });
 
     res.json(historial);
   } catch (err) {
-    console.error(err);
+    console.error("❌ Error en historial de cajas:", err.message);
     res.status(500).json({ error: "Fallo de lectura en base histórica" });
   }
 });
+
+// =========================================================================
+// ANÁLISIS
+// =========================================================================
 
 app.get('/analisis', async (req, res) => {
   try {
@@ -909,6 +1123,41 @@ app.get('/analisis', async (req, res) => {
     res.json({ ventas, totalGeneral, efectivo, credito, transferencia, clientes: clientesUnicos, porDia, porMes, masVendidos, menosVendidos, masGanancia, menosGanancia });
   } catch (err) {
     res.status(500).json({ error: "Fallo al procesar métricas gerenciales de auditoría" });
+  }
+});
+
+// =========================================================================
+// INVENTARIO — CADUCIDADES (NUEVO)
+// Lee todos los productos con campo "caducidad" y los devuelve ordenados
+// de más próximo a vencer al más lejano.
+// =========================================================================
+app.get('/inventario/caducidades', async (req, res) => {
+  try {
+    const snapshot = await db.collection('productos').get();
+    const productos = [];
+
+    snapshot.forEach(doc => {
+      const p = doc.data();
+      if (p.caducidad) {
+        productos.push({
+          _id:              doc.id,
+          nombre:           p.nombre       || "Sin Nombre",
+          codigo:           p.codigo       || "-",
+          fechaVencimiento: p.caducidad,
+          stock:            p.stock        ?? 0,
+          precioVenta:      p.precioVenta  || 0,
+          precioCompra:     p.precioCompra || 0
+        });
+      }
+    });
+
+    // Ordenar del que vence primero al último
+    productos.sort((a, b) => new Date(a.fechaVencimiento) - new Date(b.fechaVencimiento));
+
+    res.json(productos);
+  } catch (err) {
+    console.error("❌ Error al leer caducidades:", err.message);
+    res.status(500).json({ error: "Error al obtener caducidades de Firestore" });
   }
 });
 
