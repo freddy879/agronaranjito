@@ -53,6 +53,8 @@ if (process.env.BREVO_SMTP_KEY) {
       console.warn("⚠️ Brevo SMTP error de verificación:", err.message);
     } else {
       console.log("📧 Relay Brevo SMTP listo para despachar facturas a clientes.");
+      // Inicializar el guardián de caducidades una vez que el SMTP esté verificado
+      iniciarGuardianCaducidades();
     }
   });
 } else {
@@ -183,11 +185,134 @@ const mapearDocs = (snapshot) => {
 };
 
 // =========================================================================
+// 2.5 MOTOR DE ALERTAS ACTIVAS - GUARDIÁN DE CADUCIDADES (NUEVO)
+// =========================================================================
+async function ejecutarRevisionCaducidades() {
+  if (!transporter) return console.log("⚠️ Guardián abortado: Brevo SMTP no configurado.");
+  console.log("🕒 Guardián de Inventario: Iniciando escaneo diario de caducidades...");
+
+  try {
+    const snapshot = await db.collection('productos').get();
+    const hoy = new Date();
+    hoy.setHours(0,0,0,0);
+
+    let listaVencidos = [];
+    let listaCriticos = [];
+    let listaPreventivos = [];
+
+    snapshot.forEach(doc => {
+      const p = doc.data();
+      if (p.caducidad) {
+        let fechaProd = new Date(p.caducidad + "T00:00:00");
+        let diffTiempo = fechaProd - hoy;
+        let diffDias = Math.ceil(diffTiempo / (1000 * 60 * 60 * 24));
+
+        const item = {
+          nombre: p.nombre || "Sin Nombre",
+          codigo: p.codigo || "-",
+          stock: p.stock ?? 0,
+          fecha: p.caducidad,
+          dias: diffDias
+        };
+
+        if (diffDias < 0) {
+          listaVencidos.push(item);
+        } else if (diffDias <= 30) {
+          listaCriticos.push(item);
+        } else if (diffDias <= 90) {
+          listaPreventivos.push(item);
+        }
+      }
+    });
+
+    // Si no hay novedades de riesgo, no enviamos spam a tu bandeja de entrada
+    if (listaVencidos.length === 0 && listaCriticos.length === 0 && listaPreventivos.length === 0) {
+      console.log("✅ Guardián de Inventario: Cero productos en riesgo de caducidad hoy.");
+      return;
+    }
+
+    // Construcción del reporte consolidado en HTML estructurado
+    const mapearFilasHTML = (arr, badgeColor, textoBadge) => arr.map(i => `
+      <tr>
+        <td style="padding:10px; border-bottom:1px solid #eee; text-align:left;"><b>${i.nombre}</b><br><small style="color:#777;">Cód: ${i.codigo}</small></td>
+        <td style="padding:10px; border-bottom:1px solid #eee; text-align:center; font-weight:bold;">${i.stock} un.</td>
+        <td style="padding:10px; border-bottom:1px solid #eee; text-align:center; font-family:monospace;">${i.fecha}</td>
+        <td style="padding:10px; border-bottom:1px solid #eee; text-align:right;"><span style="background:${badgeColor}; color:white; padding:3px 8px; border-radius:5px; font-size:12px; font-weight:bold;">${textoBadge} (${i.dias < 0 ? 'Hace ' + Math.abs(i.dias) : i.dias} d)</span></td>
+      </tr>
+    `).join("");
+
+    let cuerpoHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="UTF-8"></head>
+    <body style="font-family:'Segoe UI',sans-serif; background:#f4f6f9; padding:20px; color:#333;">
+      <div style="max-width:650px; background:white; margin:0 auto; border-radius:12px; overflow:hidden; box-shadow:0 4px 10px rgba(0,0,0,0.05); border-top:5px solid #ff3f34;">
+        <div style="background:#1e272e; padding:20px; text-align:center; color:white;">
+          <h2 style="margin:0;">🚨 NEXUS — REPORTE DE CADUCIDADES</h2>
+          <p style="margin:5px 0 0; color:#aaa; font-size:14px;">Control de vencimientos automático para Agro Naranjito #1</p>
+        </div>
+        <div style="padding:24px;">
+          <p>Estimado Administrador, se han localizado las siguientes alertas prioritarias en su bodega:</p>
+          
+          <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:15px;">
+            <thead>
+              <tr style="background:#f8f9fa; border-bottom:2px solid #ddd; font-size:13px; color:#555;">
+                <th style="padding:10px; text-align:left;">Producto</th>
+                <th style="padding:10px; text-align:center;">Stock</th>
+                <th style="padding:10px; text-align:center;">Fecha Venc.</th>
+                <th style="padding:10px; text-align:right;">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${listaVencidos.length ? mapearFilasHTML(listaVencidos, '#e74c3c', '⚠️ Vencido') : ''}
+              ${listaCriticos.length ? mapearFilasHTML(listaCriticos, '#e67e22', '⏳ Crítico') : ''}
+              ${listaPreventivos.length ? mapearFilasHTML(listaPreventivos, '#f1c40f', '🕒 3 Meses') : ''}
+            </tbody>
+          </table>
+          
+          <p style="margin-top:25px; font-size:13px; color:#7f8c8d; text-align:center;">Nexus Core System · Este correo se genera automáticamente cada 24 horas.</p>
+        </div>
+      </div>
+    </body>
+    </html>`;
+
+    // Enviar reporte consolidado a la cuenta administrativa configurada en el relay
+    await transporter.sendMail({
+      from:    '"NEXUS Guardián" <ad85ef001@smtp-brevo.com>',
+      to:      'ad85ef001@smtp-brevo.com', // Cambiar aquí si deseas redirigirlo a otro correo administrativo personal
+      subject: `🚨 ALERTA BODEGA: ${listaVencidos.length} Vencidos / ${listaCriticos.length} Críticos detectados`,
+      html:    cuerpoHtml
+    });
+
+    console.log("📧 Correo consolidado de alertas enviado exitosamente al administrador.");
+  } catch (error) {
+    console.error("❌ Fallo en el proceso automatizado del Guardián:", error.message);
+  }
+}
+
+// Inicializa el bucle de tiempo para que se repita de forma exacta cada 24 horas en producción
+function iniciarGuardianCaducidades() {
+  // Ejecución inmediata al encender el motor del backend
+  setTimeout(ejecutarRevisionCaducidades, 5000);
+  
+  // Intervalo fijo de 24 horas en milisegundos
+  const VEINTICUATRO_HORAS = 1000 * 60 * 60 * 24;
+  setInterval(ejecutarRevisionCaducidades, VEINTICUATRO_HORAS);
+}
+
+
+// =========================================================================
 // 3. ENDPOINTS API REST
 // =========================================================================
 
 app.get('/health', (req, res) => {
   res.json({ ok: true, message: "NEXUS Core Engine activo", time: new Date() });
+});
+
+// Endpoint manual de contingencia por si deseas forzar la revisión desde el navegador o Postman
+app.get('/inventario/forzar-alerta', async (req, res) => {
+  await ejecutarRevisionCaducidades();
+  res.json({ ok: true, mensaje: "Escaneo del guardián forzado manualmente." });
 });
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -736,7 +861,6 @@ app.post('/caja/abrir', async (req, res) => {
   }
 });
 
-// ── GET /caja — Jornada activa con movimientos unificados ─────────────────
 app.get('/caja', async (req, res) => {
   try {
     const snapshot = await db.collection('cajas').where('activa', '==', true).get();
@@ -784,10 +908,8 @@ app.get('/caja', async (req, res) => {
           nota:         "Ingreso efectivo"
         });
       }
-      // tipo "inicio" se omite — ya está en la tarjeta de Stock de Apertura
     });
 
-    // Traer movimientos de inventario del rango de la jornada actual
     const apertura = new Date(caja.horaApertura).getTime();
     const ahora    = Date.now();
 
@@ -814,7 +936,6 @@ app.get('/caja', async (req, res) => {
       }
     });
 
-    // Ordenar por hora
     movimientosCaja.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
     res.json({
@@ -880,7 +1001,6 @@ app.post('/caja/ingreso', async (req, res) => {
     });
     await docRef.update(caja);
 
-    // También asentar en movimientos-inventario para trazabilidad cruzada
     await registrarMovimiento({
       tipo:     "entrada",
       codigo:   req.body.codigo  || "-",
@@ -967,7 +1087,6 @@ app.post('/caja/cerrar', async (req, res) => {
   }
 });
 
-// ── GET /caja/historial — Historial con movimientos unificados ────────────
 app.get('/caja/historial', async (req, res) => {
   try {
     const snapshot = await db.collection('cajas')
@@ -976,7 +1095,6 @@ app.get('/caja/historial', async (req, res) => {
       .limit(50)
       .get();
 
-    // Traer todos los movimientos de inventario para cruzarlos con cada jornada
     const movInvSnapshot = await db.collection('movimientos-inventario')
       .orderBy('fecha', 'desc')
       .get();
@@ -1026,7 +1144,6 @@ app.get('/caja/historial', async (req, res) => {
         }
       });
 
-      // Inyectar movimientos de inventario dentro del rango de esta jornada
       const apertura = new Date(c.horaApertura).getTime();
       const cierre   = new Date(c.horaCierre).getTime();
 
@@ -1127,9 +1244,7 @@ app.get('/analisis', async (req, res) => {
 });
 
 // =========================================================================
-// INVENTARIO — CADUCIDADES (NUEVO)
-// Lee todos los productos con campo "caducidad" y los devuelve ordenados
-// de más próximo a vencer al más lejano.
+// INVENTARIO — CADUCIDADES
 // =========================================================================
 app.get('/inventario/caducidades', async (req, res) => {
   try {
@@ -1151,7 +1266,6 @@ app.get('/inventario/caducidades', async (req, res) => {
       }
     });
 
-    // Ordenar del que vence primero al último
     productos.sort((a, b) => new Date(a.fechaVencimiento) - new Date(b.fechaVencimiento));
 
     res.json(productos);
