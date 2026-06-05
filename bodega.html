@@ -85,6 +85,10 @@
 
     .badge-bajo { background: #fff3cd; color: #856404; padding: 2px 7px; border-radius: 6px; font-size: 12px; font-weight: 600; }
     .badge-cero { background: #fde8e8; color: #a00; padding: 2px 7px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+    
+    /* Alertas de caducidad */
+    .badge-vencido { background: #ea8685; color: #fff; padding: 2px 7px; border-radius: 6px; font-size: 12px; font-weight: 600; display: block; margin-top: 4px; }
+    .badge-por-vencer { background: #f19066; color: #fff; padding: 2px 7px; border-radius: 6px; font-size: 12px; font-weight: 600; display: block; margin-top: 4px; }
   </style>
 </head>
 <body>
@@ -110,6 +114,7 @@
       <input id="precioCompra" type="number" placeholder="Precio compra">
       <input id="precioVenta" type="number" placeholder="Precio venta">
       <input id="stock" type="number" placeholder="Stock">
+      <input id="caducidad" type="date" title="Fecha de Caducidad"> <!-- NUEVO CAMPO -->
       <button onclick="guardar()">Guardar</button>
     </div>
 
@@ -127,6 +132,7 @@
             <th>Compra</th>
             <th>Venta</th>
             <th>Stock</th>
+            <th>Caducidad</th> <!-- NUEVA COLUMNA -->
             <th>Acciones</th>
           </tr>
         </thead>
@@ -205,14 +211,35 @@ async function cargar() {
 function renderTabla(lista) {
   const tabla = document.getElementById('tabla');
   if (lista.length === 0) {
-    tabla.innerHTML = `<tr><td colspan="6">No hay productos</td></tr>`;
+    tabla.innerHTML = `<tr><td colspan="7">No hay productos</td></tr>`;
     return;
   }
   let html = "";
   lista.forEach(p => {
+    // Alertas de Stock
     let stockBadge = "";
     if (p.stock === 0) stockBadge = `<span class="badge-cero">Sin stock</span>`;
     else if (p.stock <= 3) stockBadge = `<span class="badge-bajo">Stock bajo</span>`;
+
+    // Alertas y renderizado de Caducidad
+    let caducidadTexto = p.caducidad ? p.caducidad.split('T')[0] : '-'; 
+    let caducidadBadge = "";
+
+    if (p.caducidad) {
+      let fechaProd = new Date(p.caducidad + "T00:00:00");
+      let hoy = new Date();
+      hoy.setHours(0,0,0,0);
+      
+      // Calcular diferencia en días
+      let diffTiempo = fechaProd - hoy;
+      let diffDias = Math.ceil(diffTiempo / (1000 * 60 * 60 * 24));
+
+      if (diffDias < 0) {
+        caducidadBadge = `<span class="badge-vencido">⚠️ Vencido</span>`;
+      } else if (diffDias <= 30) { // Alerta si vence en menos de 30 días
+        caducidadBadge = `<span class="badge-por-vencer">⏳ Próximo (${diffDias} d)</span>`;
+      }
+    }
 
     html += `
       <tr>
@@ -221,6 +248,7 @@ function renderTabla(lista) {
         <td>$${p.precioCompra}</td>
         <td>$${p.precioVenta}</td>
         <td>${p.stock} ${stockBadge}</td>
+        <td>${caducidadTexto} ${caducidadBadge}</td>
         <td>
           <button onclick="editar('${p._id}')">✏️ Editar</button>
           <button onclick="abrirModalStock('${p._id}')">📦 Stock</button>
@@ -237,7 +265,9 @@ async function guardar() {
   let nombreVal = document.getElementById("nombre").value;
   let precioVentaVal = document.getElementById("precioVenta").value;
   let stockVal = document.getElementById("stock").value;
-  if (!nombreVal || !precioVentaVal || !stockVal) return alert("Completa los datos");
+  let caducidadVal = document.getElementById("caducidad").value; // NUEVO
+  
+  if (!nombreVal || !precioVentaVal || !stockVal) return alert("Completa los datos obligatorios");
 
   await fetch(API + '/productos', {
     method: 'POST',
@@ -247,7 +277,8 @@ async function guardar() {
       nombre: nombreVal,
       precioCompra: Number(document.getElementById("precioCompra").value),
       precioVenta: Number(precioVentaVal),
-      stock: Number(stockVal)
+      stock: Number(stockVal),
+      caducidad: caducidadVal ? caducidadVal : null // NUEVO
     })
   });
   limpiar();
@@ -257,15 +288,25 @@ async function guardar() {
 // ================= EDITAR =================
 async function editar(id) {
   let p = productos.find(x => x._id === id);
+  let fechaActualFormateada = p.caducidad ? p.caducidad.split('T')[0] : "";
+
   let codigoNuevo = prompt("Código:", p.codigo);
   let nombreNuevo = prompt("Nombre:", p.nombre);
   let compraNuevo = parseFloat(prompt("Precio compra:", p.precioCompra));
   let ventaNuevo = parseFloat(prompt("Precio venta:", p.precioVenta));
+  let caducidadNueva = prompt("Fecha caducidad (AAAA-MM-DD):", fechaActualFormateada); // NUEVO
+
   if (!nombreNuevo) return;
   await fetch(API + `/productos/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ codigo: codigoNuevo, nombre: nombreNuevo, precioCompra: compraNuevo, precioVenta: ventaNuevo })
+    body: JSON.stringify({ 
+      codigo: codigoNuevo, 
+      nombre: nombreNuevo, 
+      precioCompra: compraNuevo, 
+      precioVenta: ventaNuevo,
+      caducidad: caducidadNueva ? caducidadNueva : null // NUEVO
+    })
   });
   cargar();
 }
@@ -324,8 +365,6 @@ async function confirmarStock() {
     if (nuevoStock < 0) {
       if (!confirm(`El stock quedaría en ${nuevoStock} (negativo). ¿Confirmar de todas formas?`)) return;
     }
-    // Restar: enviamos cantidad negativa o usamos el endpoint de agregar con negativo
-    // Si tu backend solo suma, calculamos el nuevo total y lo enviamos directo
     await fetch(API + `/productos/agregar/${stockIdActual}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -358,6 +397,7 @@ function limpiar() {
   document.getElementById("precioCompra").value = "";
   document.getElementById("precioVenta").value = "";
   document.getElementById("stock").value = "";
+  document.getElementById("caducidad").value = ""; // NUEVO
 }
 
 cargar();
