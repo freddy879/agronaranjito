@@ -190,6 +190,39 @@ app.get('/health', (req, res) => {
   res.json({ ok: true, message: "NEXUS Core Engine activo", time: new Date() });
 });
 
+// ─────────────────────────────────────────────────────────────────────────
+// NUEVOS ENDPOINTS: MOVIMIENTOS DE INVENTARIO (CONEXIÓN FIRESTORE)
+// ─────────────────────────────────────────────────────────────────────────
+app.get('/movimientos-inventario', async (req, res) => {
+  try {
+    const snapshot = await db.collection('movimientos-inventario').get();
+    res.json(mapearDocs(snapshot));
+  } catch (err) {
+    console.error("Error al obtener movimientos contables:", err);
+    res.status(500).json([]);
+  }
+});
+
+app.post('/movimientos-inventario', async (req, res) => {
+  try {
+    const nuevoMovimiento = {
+      tipo: req.body.tipo || "entrada",
+      codigo: req.body.codigo || "-",
+      nombre: req.body.nombre || "Sin Nombre",
+      cantidad: Number(req.body.cantidad || 0),
+      fecha: req.body.fecha || new Date().toISOString().split('T')[0],
+      hora: req.body.hora || new Date().toLocaleTimeString('es-EC', { hour12: false }),
+      motivo: req.body.motivo || ""
+    };
+    await db.collection('movimientos-inventario').add(nuevoMovimiento);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("Error al asentar movimiento:", err);
+    res.status(500).json({ error: "Error interno al guardar historial de auditoría" });
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────
+
 app.get('/productos', async (req, res) => {
   try {
     const snapshot = await db.collection('productos').get();
@@ -200,7 +233,6 @@ app.get('/productos', async (req, res) => {
   }
 });
 
-// MODIFICADO: Ahora procesa y limpia la fecha de caducidad al registrar
 app.post('/productos', async (req, res) => {
   try {
     const nuevoProducto = {
@@ -209,7 +241,7 @@ app.post('/productos', async (req, res) => {
       precioCompra: Number(req.body.precioCompra || 0),
       precioVenta: Number(req.body.precioVenta || 0),
       stock: Number(req.body.stock || 0),
-      caducidad: req.body.caducidad ? req.body.caducidad : null // Agrega nulo si no se especifica
+      caducidad: req.body.caducidad ? req.body.caducidad : null 
     };
     await db.collection('productos').add(nuevoProducto);
     res.json({ ok: true });
@@ -218,7 +250,6 @@ app.post('/productos', async (req, res) => {
   }
 });
 
-// MODIFICADO: Agrega soporte explícito para actualizar la fecha de caducidad
 app.put('/productos/:id', async (req, res) => {
   try {
     const actualizaciones = {};
@@ -242,7 +273,11 @@ app.put('/productos/agregar/:id', async (req, res) => {
     const doc = await docRef.get();
     if (!doc.exists) return res.status(404).json({ error: "Documento objetivo inexistente" });
     const p = doc.data();
-    await docRef.update({ stock: (p.stock || 0) + Number(req.body.cantidad) });
+    
+    const updates = { stock: (p.stock || 0) + Number(req.body.cantidad) };
+    if (req.body.caducidad !== undefined) updates.caducidad = req.body.caducidad;
+
+    await docRef.update(updates);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Error interno al reaprovisionar stock" });
@@ -343,7 +378,7 @@ app.put('/clientes/editar', async (req, res) => {
     await db.collection('clientes').doc(id).update({ nombre, cedula, telefono, correo });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Error al refrescar ficha de cliente" });
+    res.status(500).json({ error: "Error al regresar ficha de cliente" });
   }
 });
 
