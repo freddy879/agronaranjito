@@ -200,18 +200,36 @@ app.get('/productos', async (req, res) => {
   }
 });
 
+// MODIFICADO: Ahora procesa y limpia la fecha de caducidad al registrar
 app.post('/productos', async (req, res) => {
   try {
-    await db.collection('productos').add(req.body);
+    const nuevoProducto = {
+      codigo: req.body.codigo || "",
+      nombre: req.body.nombre || "Sin Nombre",
+      precioCompra: Number(req.body.precioCompra || 0),
+      precioVenta: Number(req.body.precioVenta || 0),
+      stock: Number(req.body.stock || 0),
+      caducidad: req.body.caducidad ? req.body.caducidad : null // Agrega nulo si no se especifica
+    };
+    await db.collection('productos').add(nuevoProducto);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Error interno al crear producto" });
   }
 });
 
+// MODIFICADO: Agrega soporte explícito para actualizar la fecha de caducidad
 app.put('/productos/:id', async (req, res) => {
   try {
-    await db.collection('productos').doc(req.params.id).update(req.body);
+    const actualizaciones = {};
+    if (req.body.codigo !== undefined) actualizaciones.codigo = req.body.codigo;
+    if (req.body.nombre !== undefined) actualizaciones.nombre = req.body.nombre;
+    if (req.body.precioCompra !== undefined) actualizaciones.precioCompra = Number(req.body.precioCompra);
+    if (req.body.precioVenta !== undefined) actualizaciones.precioVenta = Number(req.body.precioVenta);
+    if (req.body.stock !== undefined) actualizaciones.stock = Number(req.body.stock);
+    if (req.body.caducidad !== undefined) actualizaciones.caducidad = req.body.caducidad ? req.body.caducidad : null;
+
+    await db.collection('productos').doc(req.params.id).update(actualizaciones);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Error interno al editar propiedades del producto" });
