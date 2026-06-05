@@ -308,6 +308,42 @@ app.delete('/productos/:id', async (req, res) => {
   }
 });
 
+// =========================================================================
+// NUEVOS ENDPOINTS: HISTORIAL DE MOVIMIENTOS DE INVENTARIO
+// =========================================================================
+
+// 1. OBTENER todos los movimientos (GET)
+app.get('/movimientos-inventario', async (req, res) => {
+  try {
+    const snapshot = await db.collection('movimientos-inventario').orderBy('fecha', 'desc').get();
+    res.json(mapearDocs(snapshot));
+  } catch (err) {
+    console.error("❌ Error al obtener movimientos de inventario:", err);
+    res.status(500).json([]);
+  }
+});
+
+// 2. REGISTRAR un nuevo movimiento (POST)
+app.post('/movimientos-inventario', async (req, res) => {
+  try {
+    const nuevoMovimiento = {
+      tipo: req.body.tipo || "entrada", // "entrada" o "salida"
+      codigo: req.body.codigo || "-",
+      nombre: req.body.nombre || "Sin Nombre",
+      cantidad: Number(req.body.cantidad || 0),
+      fecha: req.body.fecha || new Date().toISOString().split('T')[0],
+      hora: req.body.hora || new Date().toLocaleTimeString('es-EC', { hour12: false }),
+      motivo: req.body.motivo || "Actualización manual"
+    };
+
+    await db.collection('movimientos-inventario').add(nuevoMovimiento);
+    res.json({ ok: true, mensaje: "Movimiento asentado en auditoría" });
+  } catch (err) {
+    console.error("❌ Error al guardar movimiento en Firestore:", err);
+    res.status(500).json({ error: "Error interno al guardar el historial" });
+  }
+});
+
 app.post('/clientes', async (req, res) => {
   try {
     const nuevoCliente = {
