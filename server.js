@@ -1190,6 +1190,30 @@ app.get('/caja/historial', async (req, res) => {
   }
 });
 
+
+// ================== BORRAR CIERRE POR ID ==================
+app.delete('/caja/historial/:id', async (req, res) => {
+  try {
+    const result = await Caja.findByIdAndDelete(req.params.id);
+    if (!result) return res.status(404).json({ error: "Registro no encontrado" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("Error DELETE /caja/historial/:id", err);
+    res.status(500).json({ error: "Error al eliminar cierre" });
+  }
+});
+
+// ================== BORRAR TODO EL HISTORIAL ==================
+app.delete('/caja/historial', async (req, res) => {
+  try {
+    const result = await Caja.deleteMany({ activa: false });
+    res.json({ ok: true, eliminados: result.deletedCount });
+  } catch (err) {
+    console.error("Error DELETE /caja/historial", err);
+    res.status(500).json({ error: "Error al borrar historial" });
+  }
+});
+
 // =========================================================================
 // ANÁLISIS
 // =========================================================================
