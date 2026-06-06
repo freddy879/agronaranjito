@@ -362,7 +362,6 @@ function abrirModalCierre() {
     }
   );
 }
-
 // ===================== INTERACCIONES DE FLUJO (API) =====================
 function toggleDetalle() {
   let d = document.getElementById('detalleTransferencias');
@@ -370,16 +369,18 @@ function toggleDetalle() {
 }
 
 function construirListaTransferencias(data) {
-  let lista = [...(data?.transferenciasList || []), ...(data?.transferenciasLista || [])];
-  let idsIncluidos = new Set(lista.map(t => t._id).filter(Boolean));
-  let movimientos = data?.movimientos || [];
-  movimientos.forEach(m => {
-    if (m.banco && !idsIncluidos.has(m._id)) {
-      lista.push(m);
-      idsIncluidos.add(m._id);
-    }
+  // Sincronizado estrictamente con el formato de arreglos de tu backend actualizado
+  let lista = [...(data?.transferenciasList || [])];
+  let idsIncluidos = new Set();
+  
+  // Filtrar duplicados por si acaso compartieran alguna referencia de ID
+  return lista.filter(t => {
+    if (!t) return false;
+    const identificador = t.comprobante || t.fecha || Math.random();
+    if (idsIncluidos.has(identificador)) return false;
+    idsIncluidos.add(identificador);
+    return true;
   });
-  return lista;
 }
 
 function renderDetalle(lista) {
@@ -397,7 +398,6 @@ function renderDetalle(lista) {
     </div>
   `).join('');
 }
-
 async function cargar() {
   try {
     let res = await fetch(API + '/caja');
