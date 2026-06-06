@@ -237,19 +237,21 @@ function guardarCierreEnHistorial(data) {
     const difVal      = limpiarNumero(data.diferencia ?? (realVal - esperadoVal));
 
     const nuevoRegistro = {
-      id: Date.now(),
-      fecha: ahora.toLocaleDateString('es-EC', { weekday:'long', year:'numeric', month:'long', day:'numeric' }),
-      fechaISO: ahora.toISOString().split('T')[0],
-      hora: ahora.toLocaleTimeString('es-EC', { hour:'2-digit', minute:'2-digit' }),
-      apertura:       aperturaVal,
-      ingresos:       ingresosVal,
-      transferencias: transVal,
-      gastos:         gastosVal,
-      saldo:          saldoVal,
-      esperado:       esperadoVal,
-      real:           realVal,
-      diferencia:     difVal,
-      dejar:          limpiarNumero(data.dejar ?? 0),
+     id: Date.now(),
+     fecha: ahora.toLocaleDateString('es-EC', { weekday:'long', year:'numeric', month:'long', day:'numeric' }),
+     fechaISO: ahora.toISOString().split('T')[0],
+     hora: ahora.toLocaleTimeString('es-EC', { hour:'2-digit', minute:'2-digit' }),
+     apertura:       aperturaVal,
+     ingresos:       ingresosVal,
+     transferencias: transVal,
+     gastos:         gastosVal,
+     saldo:          saldoVal,
+     esperado:       esperadoVal,
+     real:           realVal,
+     diferencia:     difVal,
+     dejar:          limpiarNumero(data.dejar ?? 0),
+     gastosLista:        data.gastosLista        || [],
+     transferenciasList: data.transferenciasList || [],
     };
     
     historial.unshift(nuevoRegistro);
