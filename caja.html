@@ -184,9 +184,7 @@
 </div>
 
 <script>
-
 const API = "https://agronaranjito-1.onrender.com";
-const HISTORIAL_KEY = "caja_historial";
 const PASSWORD = "agro123";
 
 let transferenciasList = [];
@@ -199,105 +197,53 @@ let cajaActual = { apertura: 0, ingresos: 0, transferencias: 0, gastos: 0, saldo
 function limpiarNumero(val) {
   const num = Number(val);
   if (isNaN(num)) return 0;
-  // Redondea matemáticamente a 2 decimales para eliminar residuos de punto flotante
   return Math.round((num + Number.EPSILON) * 100) / 100;
 }
 
-// ===================== HELPERS HISTORIAL =====================
-function getHistorial() {
-  try {
-    const data = localStorage.getItem(HISTORIAL_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch(e) { 
-    console.error('Error al leer historial:', e);
-    return []; 
-  }
-}
-
-function setHistorial(arr) {
-  try {
-    localStorage.setItem(HISTORIAL_KEY, JSON.stringify(arr));
-  } catch(e) {
-    console.error('Error al guardar historial:', e);
-  }
-}
-
-function guardarCierreEnHistorial(data) {
-  try {
-    let historial = getHistorial();
-    const ahora = new Date();
-    
-    const aperturaVal = limpiarNumero(data.apertura ?? cajaActual.apertura);
-    const ingresosVal = limpiarNumero(data.ingresos ?? cajaActual.ingresos);
-    const transVal    = limpiarNumero(data.transferencias ?? cajaActual.transferencias);
-    const gastosVal   = limpiarNumero(data.gastos ?? cajaActual.gastos);
-    const saldoVal    = limpiarNumero(data.saldo ?? cajaActual.saldo);
-    
-    const realVal     = limpiarNumero(data.real ?? data.montoReal ?? 0);
-    const esperadoVal = limpiarNumero(data.esperado ?? (aperturaVal + ingresosVal - gastosVal));
-    const difVal      = limpiarNumero(data.diferencia ?? (realVal - esperadoVal));
-
-    const nuevoRegistro = {
-     id: Date.now(),
-     fecha: ahora.toLocaleDateString('es-EC', { weekday:'long', year:'numeric', month:'long', day:'numeric' }),
-     fechaISO: ahora.toISOString().split('T')[0],
-     hora: ahora.toLocaleTimeString('es-EC', { hour:'2-digit', minute:'2-digit' }),
-     apertura:       aperturaVal,
-     ingresos:       ingresosVal,
-     transferencias: transVal,
-     gastos:         gastosVal,
-     saldo:          saldoVal,
-     esperado:       esperadoVal,
-     real:           realVal,
-     diferencia:     difVal,
-     dejar:          limpiarNumero(data.dejar ?? 0),
-     gastosLista:        data.gastosLista        || [],
-     transferenciasList: data.transferenciasList || [],
-    };
-    
-    historial.unshift(nuevoRegistro);
-    setHistorial(historial);
-  } catch(e) {
-    console.error('Error al estructurar cierre en historial:', e);
-  }
-}
-
-// ===================== RENDER HISTORIAL =====================
-function renderHistorial() {
-  const historial = getHistorial();
+// ===================== RENDER HISTORIAL (DESDE LA API) =====================
+async function renderHistorial() {
   const cont = document.getElementById('historialContainer');
+  try {
+    // Consultamos directamente el historial persistido en el servidor
+    let res = await fetch(API + '/caja/historial');
+    if (!res.ok) throw new Error("No se pudo obtener el historial");
+    let historial = await res.json();
 
-  if (!historial || historial.length === 0) {
-    cont.innerHTML = '<div class="historial-vacio">📭 No hay cierres registrados aún.</div>';
-    return;
+    if (!historial || historial.length === 0) {
+      cont.innerHTML = '<div class="historial-vacio">📭 No hay cierres registrados aún en la nube.</div>';
+      return;
+    }
+    
+    cont.innerHTML = historial.map((item, i) => `
+      <div class="hist-item" id="hist-item-${i}">
+        <div class="hist-item-header">
+          <div>
+            <div class="hist-fecha">📅 ${capitalizar(item.fechaLegible || item.fecha)}</div>
+            <div class="hist-hora">🕐 Cerrada a las ${item.hora}</div>
+          </div>
+          <div class="hist-actions">
+            <div class="hist-saldo-badge">$${limpiarNumero(item.saldo).toFixed(2)}</div>
+            <button class="btn-toggle-hist" onclick="toggleHist(${i})">Ver ▼</button>
+            <button class="btn-del-dia" onclick="pedirBorrarDia('${item.id}', '${item.fechaLegible || item.fecha}')">🗑️</button>
+          </div>
+        </div>
+        <div class="hist-item-body" id="hist-body-${i}">
+          <div class="hist-row"><span>Apertura</span><span>$${limpiarNumero(item.apertura).toFixed(2)}</span></div>
+          <div class="hist-row"><span>Ventas (efectivo)</span><span>$${limpiarNumero(item.ingresos).toFixed(2)}</span></div>
+          <div class="hist-row"><span>Transferencias</span><span>$${limpiarNumero(item.transferencias).toFixed(2)}</span></div>
+          <div class="hist-row"><span>Gastos</span><span>- $${limpiarNumero(item.gastos).toFixed(2)}</span></div>
+          <div class="hist-row"><span>Saldo total</span><span style="color:green;font-weight:bold;">$${limpiarNumero(item.saldo).toFixed(2)}</span></div>
+          <div class="hist-row" style="margin-top:6px;"><span>Esperado en caja</span><span>$${limpiarNumero(item.esperado).toFixed(2)}</span></div>
+          <div class="hist-row"><span>Real contado</span><span>$${limpiarNumero(item.real).toFixed(2)}</span></div>
+          <div class="hist-row"><span>Diferencia</span><span style="color:${item.diferencia < 0 ? 'red' : '#2e7d32'}">$${limpiarNumero(item.diferencia).toFixed(2)}</span></div>
+          <div class="hist-row"><span>Dejado en caja</span><span>$${limpiarNumero(item.dejar).toFixed(2)}</span></div>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    console.error('Error al renderizar historial:', e);
+    cont.innerHTML = '<div class="historial-vacio" style="color:red;">❌ Error al conectar con el servidor central.</div>';
   }
-  
-  cont.innerHTML = historial.map((item, i) => `
-    <div class="hist-item" id="hist-item-${i}">
-      <div class="hist-item-header">
-        <div>
-          <div class="hist-fecha">📅 ${capitalizar(item.fecha)}</div>
-          <div class="hist-hora">🕐 Cerrada a las ${item.hora}</div>
-        </div>
-        <div class="hist-actions">
-          <div class="hist-saldo-badge">$${limpiarNumero(item.saldo).toFixed(2)}</div>
-          <button class="btn-toggle-hist" onclick="toggleHist(${i})">Ver ▼</button>
-          <button class="btn-del-dia" onclick="pedirBorrarDia(${i})">🗑️</button>
-        </div>
-      </div>
-      <div class="hist-item-body" id="hist-body-${i}">
-        <div class="hist-row"><span>Apertura</span><span>$${limpiarNumero(item.apertura).toFixed(2)}</span></div>
-        <div class="hist-row"><span>Ventas (efectivo)</span><span>$${limpiarNumero(item.ingresos).toFixed(2)}</span></div>
-        <div class="hist-row"><span>Transferencias</span><span>$${limpiarNumero(item.transferencias).toFixed(2)}</span></div>
-        <div class="hist-row"><span>Gastos</span><span>- $${limpiarNumero(item.gastos).toFixed(2)}</span></div>
-        <div class="hist-row"><span>Saldo total</span><span style="color:green;font-weight:bold;">$${limpiarNumero(item.saldo).toFixed(2)}</span></div>
-        <div class="hist-row" style="margin-top:6px;"><span>Esperado en caja</span><span>$${limpiarNumero(item.esperado).toFixed(2)}</span></div>
-        <div class="hist-row"><span>Real contado</span><span>$${limpiarNumero(item.real).toFixed(2)}</span></div>
-        <div class="hist-row"><span>Diferencia</span><span style="color:${item.diferencia < 0 ? 'red' : '#2e7d32'}">$${limpiarNumero(item.diferencia).toFixed(2)}</span></div>
-        <div class="hist-row"><span>Dejado en caja</span><span>$${limpiarNumero(item.dejar).toFixed(2)}</span></div>
-      </div>
-    </div>
-  `).join('');
 }
 
 function capitalizar(str) {
@@ -340,48 +286,57 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') cancelarModal();
 });
 
-// ===================== ACCIONES DEL MODAL =====================
-function pedirBorrarDia(i) {
-  const historial = getHistorial();
-  const item = historial[i];
-  if (!item) return;
-
+// ===================== ACCIONES DEL MODAL (CONECTADOS A BACKEND) =====================
+function pedirBorrarDia(id, fechaLarga) {
   const inputsHTML = `<input type="password" id="passBorrar" placeholder="Contraseña de Seguridad">`;
   
   abrirModal(
-    '🗑️ Borrar este cierre',
-    `¿Eliminar el cierre del ${capitalizar(item.fecha)}?`,
+    '🗑️ Borrar este cierre en la nube',
+    `¿Eliminar permanentemente el cierre de ${capitalizar(fechaLarga)} de la base de datos?`,
     inputsHTML,
-    () => {
+    async () => {
       const pass = document.getElementById('passBorrar').value;
       if(pass !== PASSWORD) return alert('❌ Contraseña incorrecta');
       
-      historial.splice(i, 1);
-      setHistorial(historial);
-      renderHistorial();
-      cancelarModal();
+      try {
+        let res = await fetch(`${API}/caja/historial/${id}`, {
+          method: 'DELETE'
+        });
+        if(!res.ok) throw new Error();
+        
+        alert('✅ Registro eliminado de la base de datos');
+        renderHistorial();
+        cancelarModal();
+      } catch {
+        alert('❌ Error al intentar eliminar el registro del servidor');
+      }
     }
   );
 }
 
 function pedirBorrarTodo() {
-  const historial = getHistorial();
-  if (!historial.length) return alert('El historial ya está vacío.');
-
   const inputsHTML = `<input type="password" id="passBorrarTodo" placeholder="Contraseña de Seguridad">`;
 
   abrirModal(
-    '🗑️ Borrar TODO el historial',
-    `Vas a eliminar ${historial.length} cierre(s) permanentemente.`,
+    '⚠️ VACIAR TODO EL HISTORIAL DE LA NUBE',
+    `Esta acción eliminará ABSOLUTAMENTE TODOS los cierres de Firestore de forma irreversible.`,
     inputsHTML,
-    () => {
+    async () => {
       const pass = document.getElementById('passBorrarTodo').value;
       if(pass !== PASSWORD) return alert('❌ Contraseña incorrecta');
       
-      setHistorial([]);
-      renderHistorial();
-      cancelarModal();
-      alert('✅ Historial eliminado correctamente');
+      try {
+        let res = await fetch(`${API}/caja/historial`, {
+          method: 'DELETE'
+        });
+        if(!res.ok) throw new Error();
+
+        alert('✅ Todos los registros de la nube han sido borrados');
+        renderHistorial();
+        cancelarModal();
+      } catch {
+        alert('❌ Error al procesar el vaciado en el servidor');
+      }
     }
   );
 }
@@ -449,14 +404,12 @@ async function cargar() {
     if (!res.ok) throw new Error("Error HTTP de respuesta");
     let data = await res.json();
 
-    // Guardar y normalizar números en memoria limpia
     cajaActual.apertura       = limpiarNumero(data?.apertura       ?? 0);
     cajaActual.ingresos       = limpiarNumero(data?.ingresos       ?? 0);
     cajaActual.gastos         = limpiarNumero(data?.gastos         ?? 0);
     cajaActual.saldo          = limpiarNumero(data?.saldo          ?? 0);
     cajaActual.transferencias = limpiarNumero(data?.transferencias ?? 0);
 
-    // Renderizar forzando exactamente dos decimales
     document.getElementById('apertura').innerText       = cajaActual.apertura.toFixed(2);
     document.getElementById('ingresos').innerText       = cajaActual.ingresos.toFixed(2);
     document.getElementById('gastos').innerText         = cajaActual.gastos.toFixed(2);
@@ -534,13 +487,14 @@ async function ejecutarCierreBackend(montoReal, dejar) {
     let data = await res.json();
 
     if (!data.error) {
+      // Sincronizamos las variables que no devuelva el backend
       data.montoReal = limpiarNumero(montoReal);
       data.dejar = limpiarNumero(dejar);
 
-      guardarCierreEnHistorial(data);
+      // Eliminado el LocalStorage: Ahora mandamos a refrescar directamente desde el servidor
       renderHistorial();
       imprimirFactura(data);
-      alert("Caja cerrada de forma exitosa ✔");
+      alert("Caja cerrada de forma exitosa en la nube ✔");
       cargar();
     } else {
       alert(data.error);
@@ -570,7 +524,6 @@ function imprimirFactura(data) {
     ? data.gastosLista.map(g => `- $${limpiarNumero(g.monto).toFixed(2)} | ${g.motivo}<br>`).join('')
     : 'Sin gastos registrados';
 
-  // Cálculos limpios con fallbacks matemáticos estrictos
   const apertura = limpiarNumero(data.apertura ?? cajaActual.apertura);
   const ingresos = limpiarNumero(data.ingresos ?? cajaActual.ingresos);
   const gastos   = limpiarNumero(data.gastos   ?? cajaActual.gastos);
@@ -631,10 +584,9 @@ function imprimirFactura(data) {
   ventana.document.close();
 }
 
-// Inicialización de arranque
+// Inicialización de arranque unificado
 cargar();
 renderHistorial();
-
 </script>
 </body>
 </html>
