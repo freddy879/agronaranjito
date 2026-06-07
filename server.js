@@ -12,46 +12,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static('.'));
 
 // =========================================================================
-// 0. HELPERS DE FECHA Y HORA — ZONA HORARIA ECUADOR (UTC-5, SIN DST)
-// =========================================================================
-
-/**
- * Retorna un objeto Date ajustado a la hora real de Ecuador (UTC-5).
- * Render y otros servidores corren en UTC; este helper compensa el offset
- * de forma matemática, sin depender de la configuración del sistema.
- */
-function horaEcuador() {
-  const ahora     = new Date();
-  const utcMs     = ahora.getTime() + ahora.getTimezoneOffset() * 60_000;
-  const EC_OFFSET = -5 * 60 * 60_000; // UTC-5 en milisegundos
-  return new Date(utcMs + EC_OFFSET);
-}
-
-/** "YYYY-MM-DD" en hora Ecuador */
-function fechaEC() {
-  return horaEcuador().toISOString().split('T')[0];
-}
-
-/** "HH:MM:SS" en hora Ecuador */
-function horaEC() {
-  return horaEcuador().toTimeString().split(' ')[0];
-}
-
-/** ISO string construido desde la fecha Ecuador (para guardar en Firestore) */
-function isoEC() {
-  return horaEcuador().toISOString();
-}
-
-/** Formato legible para correos: "12 de junio de 2025, 14:30" */
-function fechaLegibleEC() {
-  return horaEcuador().toLocaleString('es-EC', {
-    dateStyle: 'long',
-    timeStyle: 'short',
-    timeZone:  'America/Guayaquil'
-  });
-}
-
-// =========================================================================
 // 1. CONFIGURACIÓN DE FIREBASE ADMIN SDK
 // =========================================================================
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -71,19 +31,21 @@ try {
 const db = admin.firestore();
 
 // =========================================================================
-// 2. CONFIGURACIÓN DE NODEMAILER CON BREVO SMTP
+// 2. CONFIGURACIÓN DE NODEMAILER CON BREVO SMTP (DATOS REALES)
 // =========================================================================
 let transporter = null;
 if (process.env.BREVO_SMTP_KEY) {
   transporter = nodemailer.createTransport({
-    host:   'smtp-relay.brevo.com',
-    port:   465,
+    host: 'smtp-relay.brevo.com',
+    port: 465,
     secure: true,
     auth: {
       user: 'ad85ef001@smtp-brevo.com',
       pass: process.env.BREVO_SMTP_KEY
     },
-    tls: { rejectUnauthorized: false }
+    tls: {
+      rejectUnauthorized: false
+    }
   });
 
   transporter.verify((err) => {
@@ -91,6 +53,7 @@ if (process.env.BREVO_SMTP_KEY) {
       console.warn("⚠️ Brevo SMTP error de verificación:", err.message);
     } else {
       console.log("📧 Relay Brevo SMTP listo para despachar facturas a clientes.");
+      // Inicializar el guardián de caducidades una vez que el SMTP esté verificado
       iniciarGuardianCaducidades();
     }
   });
@@ -106,8 +69,7 @@ function generarHTMLCorreo(datos, carrito, tipoPago) {
     bancoNombre, bancoCuenta, comprobante
   } = datos;
 
-  // ✅ Fecha en hora Ecuador para el comprobante
-  const fecha = fechaLegibleEC();
+  const fecha = new Date().toLocaleString("es-EC", { dateStyle: "long", timeStyle: "short" });
 
   const filas = (carrito || []).map(p => `
     <tr>
@@ -223,7 +185,7 @@ const mapearDocs = (snapshot) => {
 };
 
 // =========================================================================
-// 2.5 MOTOR DE ALERTAS ACTIVAS — GUARDIÁN DE CADUCIDADES
+// 2.5 MOTOR DE ALERTAS ACTIVAS - GUARDIÁN DE CADUCIDADES (NUEVO)
 // =========================================================================
 async function ejecutarRevisionCaducidades() {
   if (!transporter) return console.log("⚠️ Guardián abortado: Brevo SMTP no configurado.");
@@ -231,41 +193,45 @@ async function ejecutarRevisionCaducidades() {
 
   try {
     const snapshot = await db.collection('productos').get();
+    const hoy = new Date();
+    hoy.setHours(0,0,0,0);
 
-    // ✅ Fecha de hoy en Ecuador para comparar correctamente
-    const hoy = horaEcuador();
-    hoy.setHours(0, 0, 0, 0);
-
-    let listaVencidos    = [];
-    let listaCriticos    = [];
+    let listaVencidos = [];
+    let listaCriticos = [];
     let listaPreventivos = [];
 
     snapshot.forEach(doc => {
       const p = doc.data();
       if (p.caducidad) {
-        const fechaProd = new Date(p.caducidad + "T00:00:00");
-        const diffTiempo = fechaProd - hoy;
-        const diffDias   = Math.ceil(diffTiempo / (1000 * 60 * 60 * 24));
+        let fechaProd = new Date(p.caducidad + "T00:00:00");
+        let diffTiempo = fechaProd - hoy;
+        let diffDias = Math.ceil(diffTiempo / (1000 * 60 * 60 * 24));
 
         const item = {
           nombre: p.nombre || "Sin Nombre",
           codigo: p.codigo || "-",
-          stock:  p.stock  ?? 0,
-          fecha:  p.caducidad,
-          dias:   diffDias
+          stock: p.stock ?? 0,
+          fecha: p.caducidad,
+          dias: diffDias
         };
 
-        if (diffDias < 0)       listaVencidos.push(item);
-        else if (diffDias <= 30) listaCriticos.push(item);
-        else if (diffDias <= 90) listaPreventivos.push(item);
+        if (diffDias < 0) {
+          listaVencidos.push(item);
+        } else if (diffDias <= 30) {
+          listaCriticos.push(item);
+        } else if (diffDias <= 90) {
+          listaPreventivos.push(item);
+        }
       }
     });
 
+    // Si no hay novedades de riesgo, no enviamos spam a tu bandeja de entrada
     if (listaVencidos.length === 0 && listaCriticos.length === 0 && listaPreventivos.length === 0) {
       console.log("✅ Guardián de Inventario: Cero productos en riesgo de caducidad hoy.");
       return;
     }
 
+    // Construcción del reporte consolidado en HTML estructurado
     const mapearFilasHTML = (arr, badgeColor, textoBadge) => arr.map(i => `
       <tr>
         <td style="padding:10px; border-bottom:1px solid #eee; text-align:left;"><b>${i.nombre}</b><br><small style="color:#777;">Cód: ${i.codigo}</small></td>
@@ -275,7 +241,7 @@ async function ejecutarRevisionCaducidades() {
       </tr>
     `).join("");
 
-    const cuerpoHtml = `
+    let cuerpoHtml = `
     <!DOCTYPE html>
     <html>
     <head><meta charset="UTF-8"></head>
@@ -287,6 +253,7 @@ async function ejecutarRevisionCaducidades() {
         </div>
         <div style="padding:24px;">
           <p>Estimado Administrador, se han localizado las siguientes alertas prioritarias en su bodega:</p>
+          
           <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:15px;">
             <thead>
               <tr style="background:#f8f9fa; border-bottom:2px solid #ddd; font-size:13px; color:#555;">
@@ -297,20 +264,22 @@ async function ejecutarRevisionCaducidades() {
               </tr>
             </thead>
             <tbody>
-              ${listaVencidos.length    ? mapearFilasHTML(listaVencidos,    '#e74c3c', '⚠️ Vencido') : ''}
-              ${listaCriticos.length   ? mapearFilasHTML(listaCriticos,    '#e67e22', '⏳ Crítico')  : ''}
+              ${listaVencidos.length ? mapearFilasHTML(listaVencidos, '#e74c3c', '⚠️ Vencido') : ''}
+              ${listaCriticos.length ? mapearFilasHTML(listaCriticos, '#e67e22', '⏳ Crítico') : ''}
               ${listaPreventivos.length ? mapearFilasHTML(listaPreventivos, '#f1c40f', '🕒 3 Meses') : ''}
             </tbody>
           </table>
+          
           <p style="margin-top:25px; font-size:13px; color:#7f8c8d; text-align:center;">Nexus Core System · Este correo se genera automáticamente cada 24 horas.</p>
         </div>
       </div>
     </body>
     </html>`;
 
+    // Enviar reporte consolidado a la cuenta administrativa configurada en el relay
     await transporter.sendMail({
       from:    '"NEXUS Guardián" <ad85ef001@smtp-brevo.com>',
-      to:      'ad85ef001@smtp-brevo.com',
+      to:      'ad85ef001@smtp-brevo.com', // Cambiar aquí si deseas redirigirlo a otro correo administrativo personal
       subject: `🚨 ALERTA BODEGA: ${listaVencidos.length} Vencidos / ${listaCriticos.length} Críticos detectados`,
       html:    cuerpoHtml
     });
@@ -321,40 +290,46 @@ async function ejecutarRevisionCaducidades() {
   }
 }
 
+// Inicializa el bucle de tiempo para que se repita de forma exacta cada 24 horas en producción
 function iniciarGuardianCaducidades() {
+  // Ejecución inmediata al encender el motor del backend
   setTimeout(ejecutarRevisionCaducidades, 5000);
-  setInterval(ejecutarRevisionCaducidades, 1000 * 60 * 60 * 24);
+  
+  // Intervalo fijo de 24 horas en milisegundos
+  const VEINTICUATRO_HORAS = 1000 * 60 * 60 * 24;
+  setInterval(ejecutarRevisionCaducidades, VEINTICUATRO_HORAS);
 }
 
-// =========================================================================
-// 3. HELPER INTERNO — REGISTRAR MOVIMIENTO DE INVENTARIO
-// =========================================================================
-async function registrarMovimiento({ tipo, codigo, nombre, cantidad, motivo }) {
-  await db.collection('movimientos-inventario').add({
-    tipo:     tipo     || "entrada",
-    codigo:   codigo   || "-",
-    nombre:   nombre   || "Sin Nombre",
-    cantidad: Number(cantidad || 0),
-    fecha:    fechaEC(),   // ✅ "YYYY-MM-DD" en hora Ecuador
-    hora:     horaEC(),    // ✅ "HH:MM:SS" en hora Ecuador
-    motivo:   motivo   || "Actualización manual"
-  });
-}
 
 // =========================================================================
-// 4. ENDPOINTS API REST
+// 3. ENDPOINTS API REST
 // =========================================================================
 
 app.get('/health', (req, res) => {
-  res.json({ ok: true, message: "NEXUS Core Engine activo", time: isoEC() });
+  res.json({ ok: true, message: "NEXUS Core Engine activo", time: new Date() });
 });
 
+// Endpoint manual de contingencia por si deseas forzar la revisión desde el navegador o Postman
 app.get('/inventario/forzar-alerta', async (req, res) => {
   await ejecutarRevisionCaducidades();
   res.json({ ok: true, mensaje: "Escaneo del guardián forzado manualmente." });
 });
 
-// ─── PRODUCTOS ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
+// Helper interno: registrar un movimiento de inventario en Firestore
+// ─────────────────────────────────────────────────────────────────────────
+async function registrarMovimiento({ tipo, codigo, nombre, cantidad, motivo }) {
+  const ahora = new Date();
+  await db.collection('movimientos-inventario').add({
+    tipo:     tipo     || "entrada",
+    codigo:   codigo   || "-",
+    nombre:   nombre   || "Sin Nombre",
+    cantidad: Number(cantidad || 0),
+    fecha:    ahora.toISOString().split('T')[0],
+    hora:     ahora.toLocaleTimeString('es-EC', { hour12: false, timeZone: 'America/Guayaquil' }),
+    motivo:   motivo   || "Actualización manual"
+  });
+}
 
 app.get('/productos', async (req, res) => {
   try {
@@ -369,12 +344,12 @@ app.get('/productos', async (req, res) => {
 app.post('/productos', async (req, res) => {
   try {
     const nuevoProducto = {
-      codigo:       req.body.codigo       || "",
-      nombre:       req.body.nombre       || "Sin Nombre",
+      codigo: req.body.codigo || "",
+      nombre: req.body.nombre || "Sin Nombre",
       precioCompra: Number(req.body.precioCompra || 0),
-      precioVenta:  Number(req.body.precioVenta  || 0),
-      stock:        Number(req.body.stock        || 0),
-      caducidad:    req.body.caducidad ? req.body.caducidad : null
+      precioVenta: Number(req.body.precioVenta || 0),
+      stock: Number(req.body.stock || 0),
+      caducidad: req.body.caducidad ? req.body.caducidad : null
     };
     await db.collection('productos').add(nuevoProducto);
     res.json({ ok: true });
@@ -386,12 +361,12 @@ app.post('/productos', async (req, res) => {
 app.put('/productos/:id', async (req, res) => {
   try {
     const actualizaciones = {};
-    if (req.body.codigo       !== undefined) actualizaciones.codigo       = req.body.codigo;
-    if (req.body.nombre       !== undefined) actualizaciones.nombre       = req.body.nombre;
+    if (req.body.codigo !== undefined) actualizaciones.codigo = req.body.codigo;
+    if (req.body.nombre !== undefined) actualizaciones.nombre = req.body.nombre;
     if (req.body.precioCompra !== undefined) actualizaciones.precioCompra = Number(req.body.precioCompra);
-    if (req.body.precioVenta  !== undefined) actualizaciones.precioVenta  = Number(req.body.precioVenta);
-    if (req.body.stock        !== undefined) actualizaciones.stock        = Number(req.body.stock);
-    if (req.body.caducidad    !== undefined) actualizaciones.caducidad    = req.body.caducidad ? req.body.caducidad : null;
+    if (req.body.precioVenta !== undefined) actualizaciones.precioVenta = Number(req.body.precioVenta);
+    if (req.body.stock !== undefined) actualizaciones.stock = Number(req.body.stock);
+    if (req.body.caducidad !== undefined) actualizaciones.caducidad = req.body.caducidad ? req.body.caducidad : null;
 
     await db.collection('productos').doc(req.params.id).update(actualizaciones);
     res.json({ ok: true });
@@ -403,7 +378,7 @@ app.put('/productos/:id', async (req, res) => {
 app.put('/productos/agregar/:id', async (req, res) => {
   try {
     const docRef = db.collection('productos').doc(req.params.id);
-    const doc    = await docRef.get();
+    const doc = await docRef.get();
     if (!doc.exists) return res.status(404).json({ error: "Documento objetivo inexistente" });
     const p = doc.data();
 
@@ -429,13 +404,11 @@ app.put('/productos/agregar/:id', async (req, res) => {
 app.put('/productos/vender/:id', async (req, res) => {
   try {
     const docRef = db.collection('productos').doc(req.params.id);
-    const doc    = await docRef.get();
+    const doc = await docRef.get();
     if (!doc.exists) return res.status(404).json({ error: "El producto no existe en el catálogo" });
     const p = doc.data();
-
     let nuevoStock = (p.stock || 0) - Number(req.body.cantidad);
     if (nuevoStock < 0) nuevoStock = 0;
-
     await docRef.update({ stock: nuevoStock });
     res.json({ ok: true });
   } catch (err) {
@@ -452,7 +425,9 @@ app.delete('/productos/:id', async (req, res) => {
   }
 });
 
-// ─── HISTORIAL DE MOVIMIENTOS DE INVENTARIO ───────────────────────────────
+// =========================================================================
+// HISTORIAL DE MOVIMIENTOS DE INVENTARIO
+// =========================================================================
 
 app.get('/movimientos-inventario', async (req, res) => {
   try {
@@ -471,10 +446,11 @@ app.post('/movimientos-inventario', async (req, res) => {
       codigo:   req.body.codigo   || "-",
       nombre:   req.body.nombre   || "Sin Nombre",
       cantidad: Number(req.body.cantidad || 0),
-      fecha:    req.body.fecha    || fechaEC(),  // ✅ Ecuador
-      hora:     req.body.hora     || horaEC(),   // ✅ Ecuador
+      fecha:    req.body.fecha    || new Date().toISOString().split('T')[0],
+      hora:     req.body.hora     || new Date().toLocaleTimeString('es-EC', { hour12: false }),
       motivo:   req.body.motivo   || "Actualización manual"
     };
+
     await db.collection('movimientos-inventario').add(nuevoMovimiento);
     res.json({ ok: true, mensaje: "Movimiento asentado en auditoría" });
   } catch (err) {
@@ -483,20 +459,22 @@ app.post('/movimientos-inventario', async (req, res) => {
   }
 });
 
-// ─── CLIENTES ─────────────────────────────────────────────────────────────
+// =========================================================================
+// CLIENTES
+// =========================================================================
 
 app.post('/clientes', async (req, res) => {
   try {
     const nuevoCliente = {
-      nombre:      req.body.nombre      || "Sin Nombre",
-      cedula:      req.body.cedula      || "Sin Cédula",
-      direccion:   req.body.direccion   || "",
-      telefono:    req.body.telefono    || "",
-      correo:      req.body.correo      || "",
+      nombre:      req.body.nombre     || "Sin Nombre",
+      cedula:      req.body.cedula     || "Sin Cédula",
+      direccion:   req.body.direccion  || "",
+      telefono:    req.body.telefono   || "",
+      correo:      req.body.correo     || "",
       deudaTotal:  Number(req.body.deudaTotal  || 0),
       deudaActual: Number(req.body.deudaActual || 0),
-      estado:      req.body.estado      || "normal",
-      fecha:       req.body.fecha ? new Date(req.body.fecha).toISOString() : isoEC() // ✅
+      estado:      req.body.estado     || "normal",
+      fecha:       req.body.fecha ? new Date(req.body.fecha).toISOString() : new Date().toISOString()
     };
     const resultado = await db.collection('clientes').add(nuevoCliente);
     res.json({ ok: true, cliente: { _id: resultado.id, ...nuevoCliente } });
@@ -521,8 +499,7 @@ app.post('/clientes/sumar-deuda', async (req, res) => {
     const { cedula, total } = req.body;
     const snapshot = await db.collection('clientes').where('cedula', '==', cedula).get();
     if (snapshot.empty) return res.status(404).json({ error: "Cliente no registrado en la base de datos" });
-
-    const docRef  = snapshot.docs[0].ref;
+    const docRef = snapshot.docs[0].ref;
     const cliente = snapshot.docs[0].data();
     const deudaTotal  = (cliente.deudaTotal  || 0) + Number(total);
     const deudaActual = (cliente.deudaActual || 0) + Number(total);
@@ -538,8 +515,7 @@ app.post('/clientes/abonar', async (req, res) => {
     const { cedula, monto } = req.body;
     const snapshot = await db.collection('clientes').where('cedula', '==', cedula).get();
     if (snapshot.empty) return res.status(404).json({ error: "Titular no encontrado" });
-
-    const docRef  = snapshot.docs[0].ref;
+    const docRef = snapshot.docs[0].ref;
     const cliente = snapshot.docs[0].data();
     let deudaActual = (cliente.deudaActual || 0) - Number(monto);
     let estado = cliente.estado;
@@ -580,7 +556,9 @@ app.delete('/clientes/:id', async (req, res) => {
   }
 });
 
-// ─── CORREO ───────────────────────────────────────────────────────────────
+// =========================================================================
+// CORREO
+// =========================================================================
 
 app.post('/correo/factura', async (req, res) => {
   console.log("📨 Petición entrante POST /correo/factura para:", req.body?.correo);
@@ -612,13 +590,14 @@ app.post('/correo/factura', async (req, res) => {
   }
 });
 
-// ─── VENTAS ───────────────────────────────────────────────────────────────
+// ===================================================
+// ===================================================================
 
 app.post('/ventas', async (req, res) => {
   try {
     const nuevaVenta = {
       ...req.body,
-      fecha: req.body.fecha ? new Date(req.body.fecha).toISOString() : isoEC() // ✅
+      fecha: req.body.fecha ? new Date(req.body.fecha).toISOString() : new Date().toISOString()
     };
 
     await db.collection('ventas').add(nuevaVenta);
@@ -631,7 +610,9 @@ app.post('/ventas', async (req, res) => {
           codigo:   p.codigo || "-",
           nombre:   p.nombre || "Sin Nombre",
           cantidad: Number(p.amount || p.cantidad || 1),
-          motivo:   `Venta — Cliente: ${cliente}`
+          motivo:   req.body.tipo === "credito"
+                      ? `[CREDITO] Venta — Cliente: ${cliente}`
+                      : `Venta — Cliente: ${cliente}`
         });
       }
     }
@@ -646,12 +627,7 @@ app.post('/ventas', async (req, res) => {
         if (!caja.movimientos) caja.movimientos = [];
 
         if (req.body.tipo === "efectivo") {
-          caja.movimientos.push({
-            tipo:   "ingreso",
-            monto:  req.body.total,
-            motivo: `Venta directa efectivo - Cliente: ${req.body.cliente}`,
-            fecha:  isoEC() // ✅
-          });
+          caja.movimientos.push({ tipo: "ingreso", monto: req.body.total, motivo: `Venta directa efectivo - Cliente: ${req.body.cliente}`, fecha: new Date().toISOString() });
         } else {
           caja.movimientos.push({
             tipo:        "transferencia",
@@ -661,7 +637,7 @@ app.post('/ventas', async (req, res) => {
             cuenta:      req.body.cuenta      || "",
             comprobante: req.body.comprobante || "",
             remitente:   req.body.cliente     || "",
-            fecha:       isoEC() // ✅
+            fecha:       new Date().toISOString()
           });
         }
         await cajaRef.update(caja);
@@ -679,7 +655,7 @@ app.post('/ventas', async (req, res) => {
         pagado:    0,
         productos: req.body.productos || [],
         pagos:     [],
-        fecha:     isoEC() // ✅
+        fecha:     new Date().toISOString()
       });
     }
 
@@ -739,7 +715,9 @@ app.delete('/ventas/dia', async (req, res) => {
   }
 });
 
-// ─── DEUDAS ───────────────────────────────────────────────────────────────
+// =========================================================================
+// DEUDAS
+// =========================================================================
 
 app.get('/deudas', async (req, res) => {
   try {
@@ -762,7 +740,7 @@ app.post('/deudas', async (req, res) => {
       pagado:    0,
       productos: req.body.productos || [],
       pagos:     [],
-      fecha:     req.body.fecha ? new Date(req.body.fecha).toISOString() : isoEC() // ✅
+      fecha:     req.body.fecha ? new Date(req.body.fecha).toISOString() : new Date().toISOString()
     };
     const resultado = await db.collection('deudas').add(nueva);
     res.json({ _id: resultado.id, ...nueva });
@@ -777,8 +755,8 @@ app.post('/deudas/pagar', async (req, res) => {
     const doc    = await docRef.get();
     if (!doc.exists) return res.json({ error: "Cuenta de deuda no localizada" });
 
-    const deuda = doc.data();
-    const monto = Number(req.body.monto);
+    const deuda   = doc.data();
+    const monto   = Number(req.body.monto);
     if (!monto || monto <= 0) return res.json({ error: "Importe introducido inválido" });
 
     const restante = deuda.total - deuda.pagado;
@@ -786,13 +764,13 @@ app.post('/deudas/pagar', async (req, res) => {
 
     deuda.pagado += monto;
     if (!deuda.pagos) deuda.pagos = [];
-    deuda.pagos.push({ monto, fecha: isoEC() }); // ✅
+    deuda.pagos.push({ monto, fecha: new Date().toISOString() });
     await docRef.update(deuda);
 
     const cajasSnapshot = await db.collection('cajas').where('activa', '==', true).get();
     if (!cajasSnapshot.empty) {
-      const cajaRef     = cajasSnapshot.docs[0].ref;
-      const caja        = cajasSnapshot.docs[0].data();
+      const cajaRef = cajasSnapshot.docs[0].ref;
+      const caja    = cajasSnapshot.docs[0].data();
       const metodoPago  = req.body.metodoPago  || "efectivo";
       const banco       = req.body.banco       || "";
       const comprobante = req.body.comprobante || "";
@@ -801,22 +779,9 @@ app.post('/deudas/pagar', async (req, res) => {
       if (!caja.movimientos) caja.movimientos = [];
 
       if (metodoPago === "transferencia") {
-        caja.movimientos.push({
-          tipo:        "transferencia",
-          monto,
-          motivo:      `Abono a Cuenta Diferida — ${deuda.cliente}`,
-          banco,
-          comprobante,
-          remitente:   deuda.cliente || "",
-          fecha:       isoEC() // ✅
-        });
+        caja.movimientos.push({ tipo: "transferencia", monto, motivo: `Abono a Cuenta Diferida — ${deuda.cliente}`, banco, comprobante, remitente: deuda.cliente || "", fecha: new Date().toISOString() });
       } else {
-        caja.movimientos.push({
-          tipo:   "ingreso",
-          monto,
-          motivo: `Abono Efectivo Deuda — ${deuda.cliente}`,
-          fecha:  isoEC() // ✅
-        });
+        caja.movimientos.push({ tipo: "ingreso", monto, motivo: `Abono Efectivo Deuda — ${deuda.cliente}`, fecha: new Date().toISOString() });
       }
       await cajaRef.update(caja);
     }
@@ -869,7 +834,9 @@ app.delete('/deudas/:id', async (req, res) => {
   }
 });
 
-// ─── CAJA ─────────────────────────────────────────────────────────────────
+// =========================================================================
+// CAJA — CON MOVIMIENTOS UNIFICADOS (CAJA + INVENTARIO)
+// =========================================================================
 
 app.post('/caja/abrir', async (req, res) => {
   try {
@@ -878,7 +845,7 @@ app.post('/caja/abrir', async (req, res) => {
 
     const abiertaSnapshot = await db.collection('cajas').where('activa', '==', true).get();
     if (!abiertaSnapshot.empty) {
-      await abiertaSnapshot.docs[0].ref.update({ activa: false, horaCierre: isoEC() }); // ✅
+      await abiertaSnapshot.docs[0].ref.update({ activa: false, horaCierre: new Date().toISOString() });
     }
 
     await db.collection('cajas').add({
@@ -886,8 +853,8 @@ app.post('/caja/abrir', async (req, res) => {
       ingresos:     0,
       gastos:       0,
       activa:       true,
-      horaApertura: isoEC(), // ✅
-      movimientos:  [{ tipo: "inicio", monto, motivo: "Apertura operativa de caja", fecha: isoEC() }] // ✅
+      horaApertura: new Date().toISOString(),
+      movimientos:  [{ tipo: "inicio", monto, motivo: "Apertura operativa de caja", fecha: new Date().toISOString() }]
     });
     res.json({ ok: true });
   } catch (err) {
@@ -917,7 +884,7 @@ app.get('/caja', async (req, res) => {
           producto:     `Transferencia — ${m.banco || ""}`,
           cantidad:     m.monto || 0,
           fecha:        m.fecha,
-          horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC', { timeZone: 'America/Guayaquil' }) : "", // ✅
+          horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
           nota:         m.comprobante ? `Ref: ${m.comprobante}` : ""
         });
       }
@@ -928,7 +895,7 @@ app.get('/caja', async (req, res) => {
           producto:     m.motivo || "Gasto de caja",
           cantidad:     m.monto  || 0,
           fecha:        m.fecha,
-          horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC', { timeZone: 'America/Guayaquil' }) : "", // ✅
+          horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
           nota:         "Egreso"
         });
       }
@@ -938,7 +905,7 @@ app.get('/caja', async (req, res) => {
           producto:     m.motivo || "Ingreso",
           cantidad:     m.monto  || 0,
           fecha:        m.fecha,
-          horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC', { timeZone: 'America/Guayaquil' }) : "", // ✅
+          horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
           nota:         "Ingreso efectivo"
         });
       }
@@ -952,8 +919,9 @@ app.get('/caja', async (req, res) => {
       .limit(500)
       .get();
 
-    movInvSnapshot.forEach(doc => {
+     movInvSnapshot.forEach(doc => {
       const m            = doc.data();
+      if (m.motivo && m.motivo.startsWith('[CREDITO]')) return; // ✅ ignorar créditos
       const fechaHoraStr = `${m.fecha}T${m.hora || "00:00:00"}`;
       const ts           = new Date(fechaHoraStr).getTime();
 
@@ -963,7 +931,7 @@ app.get('/caja', async (req, res) => {
           producto:     m.nombre   || m.motivo || "Producto",
           cantidad:     m.cantidad || 0,
           fecha:        fechaHoraStr,
-          horaRegistro: m.hora || "",
+          horaRegistro: m.hora || new Date(fechaHoraStr).toLocaleTimeString('es-EC'),
           nota:         m.motivo   || "",
           codigo:       m.codigo   || ""
         });
@@ -1002,7 +970,7 @@ app.post('/caja/gasto', async (req, res) => {
 
     caja.gastos = (caja.gastos || 0) + monto;
     if (!caja.movimientos) caja.movimientos = [];
-    caja.movimientos.push({ tipo: "gasto", monto, motivo, fecha: isoEC() }); // ✅
+    caja.movimientos.push({ tipo: "gasto", monto, motivo, fecha: new Date().toISOString() });
     await docRef.update(caja);
     res.json({ ok: true });
   } catch (err) {
@@ -1030,17 +998,17 @@ app.post('/caja/ingreso', async (req, res) => {
       producto:     req.body.producto     || motivo,
       cantidad:     monto,
       nota:         req.body.nota         || "",
-      horaRegistro: horaEC(),              // ✅
-      fecha:        isoEC()                // ✅
+      horaRegistro: req.body.horaRegistro || new Date().toLocaleTimeString('es-EC'),
+      fecha:        new Date().toISOString()
     });
     await docRef.update(caja);
 
     await registrarMovimiento({
       tipo:     "entrada",
-      codigo:   req.body.codigo   || "-",
+      codigo:   req.body.codigo  || "-",
       nombre:   req.body.producto || motivo,
       cantidad: monto,
-      motivo:   req.body.nota     || "Entrada registrada desde panel de flujo"
+      motivo:   req.body.nota    || "Entrada registrada desde panel de flujo"
     });
 
     res.json({ ok: true });
@@ -1069,7 +1037,7 @@ app.post('/caja/transferencia', async (req, res) => {
       cuenta:      req.body.cuenta      || "",
       comprobante: req.body.comprobante || "",
       remitente:   req.body.remitente   || "",
-      fecha:       isoEC() // ✅
+      fecha:       new Date().toISOString()
     });
     await docRef.update(caja);
     res.json({ ok: true });
@@ -1099,14 +1067,9 @@ app.post('/caja/cerrar', async (req, res) => {
 
     caja.activa     = false;
     caja.cierre     = real;
-    caja.horaCierre = isoEC(); // ✅
+    caja.horaCierre = new Date().toISOString();
     caja.dejado     = dejar;
-    caja.movimientos.push({
-      tipo:   "cierre",
-      monto:  real,
-      motivo: `Cierre contable de jornada | Fondo retenido: $${dejar}`,
-      fecha:  isoEC() // ✅
-    });
+    caja.movimientos.push({ tipo: "cierre", monto: real, motivo: `Cierre contable de jornada | Fondo retenido: $${dejar}`, fecha: new Date().toISOString() });
     await docRef.update(caja);
 
     if (dejar > 0) {
@@ -1115,26 +1078,12 @@ app.post('/caja/cerrar', async (req, res) => {
         ingresos:     0,
         gastos:       0,
         activa:       true,
-        horaApertura: isoEC(), // ✅
-        movimientos:  [{ tipo: "inicio", monto: dejar, motivo: "Fondo de apertura automático poscierre", fecha: isoEC() }] // ✅
+        horaApertura: new Date().toISOString(),
+        movimientos:  [{ tipo: "inicio", monto: dejar, motivo: "Fondo de apertura automático poscierre", fecha: new Date().toISOString() }]
       });
     }
 
-    res.json({
-      apertura:          caja.apertura,
-      ingresos:          caja.ingresos,
-      transferencias,
-      gastos:            caja.gastos,
-      esperado,
-      real,
-      diferencia,
-      dejar,
-      fechaApertura:     caja.horaApertura,
-      fechaCierre:       caja.horaCierre,
-      gastosLista,
-      transferenciasList,
-      movimientos:       caja.movimientos
-    });
+    res.json({ apertura: caja.apertura, ingresos: caja.ingresos, transferencias, gastos: caja.gastos, esperado, real, diferencia, dejar, fechaApertura: caja.horaApertura, fechaCierre: caja.horaCierre, gastosLista, transferenciasList, movimientos: caja.movimientos });
   } catch (err) {
     res.status(500).json({ error: "Fallo general en protocolo de arqueo" });
   }
@@ -1169,7 +1118,7 @@ app.get('/caja/historial', async (req, res) => {
             producto:     m.motivo || "Gasto de caja",
             cantidad:     m.monto  || 0,
             fecha:        m.fecha,
-            horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC', { timeZone: 'America/Guayaquil' }) : "", // ✅
+            horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
             nota:         "Egreso de caja"
           });
         }
@@ -1181,7 +1130,7 @@ app.get('/caja/historial', async (req, res) => {
             producto:     `Transferencia — ${m.banco || ""}`,
             cantidad:     m.monto || 0,
             fecha:        m.fecha,
-            horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC', { timeZone: 'America/Guayaquil' }) : "", // ✅
+            horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
             nota:         m.comprobante ? `Ref: ${m.comprobante}` : ""
           });
         }
@@ -1191,7 +1140,7 @@ app.get('/caja/historial', async (req, res) => {
             producto:     m.motivo || "Ingreso de caja",
             cantidad:     m.monto  || 0,
             fecha:        m.fecha,
-            horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC', { timeZone: 'America/Guayaquil' }) : "", // ✅
+            horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
             nota:         "Ingreso efectivo"
           });
         }
@@ -1210,7 +1159,7 @@ app.get('/caja/historial', async (req, res) => {
             producto:     m.nombre   || m.motivo || "Producto",
             cantidad:     m.cantidad || 0,
             fecha:        fechaHoraStr,
-            horaRegistro: m.hora || "",
+            horaRegistro: m.hora || new Date(fechaHoraStr).toLocaleTimeString('es-EC'),
             nota:         m.motivo   || "",
             codigo:       m.codigo   || ""
           });
@@ -1243,12 +1192,12 @@ app.get('/caja/historial', async (req, res) => {
   }
 });
 
+
+// ================== BORRAR CIERRE POR ID ==================
 app.delete('/caja/historial/:id', async (req, res) => {
   try {
-    const docRef = db.collection('cajas').doc(req.params.id);
-    const doc    = await docRef.get();
-    if (!doc.exists) return res.status(404).json({ error: "Registro no encontrado" });
-    await docRef.delete();
+    const result = await Caja.findByIdAndDelete(req.params.id);
+    if (!result) return res.status(404).json({ error: "Registro no encontrado" });
     res.json({ ok: true });
   } catch (err) {
     console.error("Error DELETE /caja/historial/:id", err);
@@ -1256,20 +1205,20 @@ app.delete('/caja/historial/:id', async (req, res) => {
   }
 });
 
+// ================== BORRAR TODO EL HISTORIAL ==================
 app.delete('/caja/historial', async (req, res) => {
   try {
-    const snapshot = await db.collection('cajas').where('activa', '==', false).get();
-    const batch    = db.batch();
-    snapshot.docs.forEach(doc => batch.delete(doc.ref));
-    await batch.commit();
-    res.json({ ok: true, eliminados: snapshot.size });
+    const result = await Caja.deleteMany({ activa: false });
+    res.json({ ok: true, eliminados: result.deletedCount });
   } catch (err) {
     console.error("Error DELETE /caja/historial", err);
     res.status(500).json({ error: "Error al borrar historial" });
   }
 });
 
-// ─── ANÁLISIS ─────────────────────────────────────────────────────────────
+// =========================================================================
+// ANÁLISIS
+// =========================================================================
 
 app.get('/analisis', async (req, res) => {
   try {
@@ -1314,21 +1263,18 @@ app.get('/analisis', async (req, res) => {
     const menosGanancia = [...lista].sort((a, b) => a.ganancia  - b.ganancia ).slice(0, 5);
     const clientesUnicos = new Set(ventas.map(v => v.cedula || v.cliente)).size;
 
-    res.json({
-      ventas, totalGeneral, efectivo, credito, transferencia,
-      clientes: clientesUnicos, porDia, porMes,
-      masVendidos, menosVendidos, masGanancia, menosGanancia
-    });
+    res.json({ ventas, totalGeneral, efectivo, credito, transferencia, clientes: clientesUnicos, porDia, porMes, masVendidos, menosVendidos, masGanancia, menosGanancia });
   } catch (err) {
     res.status(500).json({ error: "Fallo al procesar métricas gerenciales de auditoría" });
   }
 });
 
-// ─── INVENTARIO — CADUCIDADES ─────────────────────────────────────────────
-
+// =========================================================================
+// INVENTARIO — CADUCIDADES
+// =========================================================================
 app.get('/inventario/caducidades', async (req, res) => {
   try {
-    const snapshot  = await db.collection('productos').get();
+    const snapshot = await db.collection('productos').get();
     const productos = [];
 
     snapshot.forEach(doc => {
@@ -1347,6 +1293,7 @@ app.get('/inventario/caducidades', async (req, res) => {
     });
 
     productos.sort((a, b) => new Date(a.fechaVencimiento) - new Date(b.fechaVencimiento));
+
     res.json(productos);
   } catch (err) {
     console.error("❌ Error al leer caducidades:", err.message);
@@ -1355,7 +1302,7 @@ app.get('/inventario/caducidades', async (req, res) => {
 });
 
 // =========================================================================
-// 5. INICIALIZACIÓN
+// 4. INICIALIZACIÓN
 // =========================================================================
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
