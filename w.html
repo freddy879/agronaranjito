@@ -1,640 +1,1308 @@
+require('dotenv').config();
+const express = require('express');
+const cors    = require('cors');
+const admin   = require('firebase-admin');
+const nodemailer = require('nodemailer');
 
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Caja</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', sans-serif; background: #f5f6fa; display: flex; }
+const app = express();
 
-    .sidebar { width: 220px; background: #1e272e; color: white; height: 100vh; padding: 20px; flex-shrink: 0; }
-    .sidebar h2 { margin-bottom: 16px; }
-    .sidebar a { display: block; color: white; padding: 10px; text-decoration: none; margin-top: 6px; border-radius: 8px; }
-    .sidebar a:hover { background: #485460; }
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static('.'));
 
-    .main { flex: 1; display: flex; flex-direction: column; min-height: 100vh; overflow-y: auto; }
-    .header { background: #ff3f34; color: white; padding: 15px 20px; font-size: 20px; font-weight: bold; }
-
-    .contenido { padding: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
-
-    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
-    .card h3 { margin-bottom: 12px; font-size: 16px; }
-
-    input { padding: 10px; margin-top: 8px; width: 100%; border-radius: 6px; border: 1px solid #ccc; }
-
-    button { margin-top: 10px; width: 100%; padding: 10px; border: none; background: #ff3f34; color: white; border-radius: 6px; cursor: pointer; font-weight: bold; }
-    button:hover { background: #e84118; }
-    button.btn-gray { background: #636e72; }
-    button.btn-gray:hover { background: #2d3436; }
-    button.btn-danger { background: #d63031; }
-    button.btn-danger:hover { background: #b71c1c; }
-    button.btn-sm {
-      width: auto;
-      padding: 5px 12px;
-      font-size: 12px;
-      margin-top: 0;
-      display: inline-block;
-    }
-
-    .saldo { font-size: 22px; color: green; font-weight: bold; }
-
-    .estado-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
-    .estado-row:last-child { border-bottom: none; }
-
-    .badge { background: #fff3f3; color: #ff3f34; font-size: 11px; padding: 2px 7px; border-radius: 4px; cursor: pointer; margin-left: 6px; border: 1px solid #ffcdd2; }
-    .badge:hover { background: #ffcdd2; }
-
-    .trans-detalle { background: #f9f9f9; border-radius: 8px; padding: 10px; margin-top: 10px; font-size: 13px; display: none; }
-    .trans-item { padding: 6px 0; border-bottom: 1px dashed #ddd; }
-    .trans-item:last-child { border-bottom: none; }
-
-    .aviso { background: #fff8e1; border: 1px solid #ffc107; border-radius: 6px; padding: 10px; margin-bottom: 10px; font-size: 12px; color: #795548; }
-
-    /* ===== HISTORIAL ===== */
-    .historial-section { padding: 0 20px 30px 20px; }
-    .historial-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
-    .historial-header h3 { font-size: 18px; color: #1e272e; }
-    .btn-borrar-todo { background: #d63031; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; }
-    .btn-borrar-todo:hover { background: #b71c1c; }
-
-    .historial-vacio { color: #999; font-size: 14px; text-align: center; padding: 30px 0; }
-
-    .hist-item { background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); margin-bottom: 12px; overflow: hidden; }
-    .hist-item-header { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; background: #fafafa; border-bottom: 1px solid #f0f0f0; flex-wrap: wrap; gap: 8px; }
-    .hist-fecha { font-weight: bold; font-size: 14px; color: #1e272e; }
-    .hist-hora { font-size: 12px; color: #636e72; margin-top: 2px; }
-    .hist-saldo-badge { background: #e8f5e9; color: #2e7d32; font-weight: bold; padding: 5px 14px; border-radius: 20px; font-size: 14px; }
-    .hist-item-body { padding: 12px 18px; display: none; font-size: 13px; }
-    .hist-item-body.abierto { display: block; }
-
-    .hist-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed #f0f0f0; }
-    .hist-row:last-child { border-bottom: none; }
-    .hist-row span:first-child { color: #636e72; }
-    .hist-row span:last-child { font-weight: 600; color: #2d3436; }
-
-    .hist-actions { display: flex; align-items: center; gap: 8px; }
-    .btn-toggle-hist { background: #dfe6e9; color: #2d3436; border: none; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; }
-    .btn-toggle-hist:hover { background: #b2bec3; }
-    .btn-del-dia { background: #fff0f0; color: #d63031; border: 1px solid #ffcdd2; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; }
-    .btn-del-dia:hover { background: #ffcdd2; }
-
-    /* ===== MODAL ===== */
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000; align-items: center; justify-content: center; }
-    .modal-overlay.activo { display: flex; }
-    .modal-box { background: white; border-radius: 14px; padding: 28px 32px; width: 340px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); text-align: center; }
-    .modal-box h3 { margin-bottom: 12px; font-size: 17px; }
-    .modal-box p { font-size: 13px; color: #636e72; margin-bottom: 14px; }
-    .modal-box input { margin-bottom: 10px; width: 100%; }
-    .modal-btns { display: flex; gap: 10px; margin-top: 6px; }
-    .modal-btns button { margin-top: 0; flex: 1; }
-
-    @page { size: 80mm auto; margin: 0; }
-    @media print {
-      body { width: 80mm; font-family: monospace; font-size: 12px; }
-      .sidebar, button, .historial-section, .aviso, .badge { display: none !important; }
-      .card { box-shadow: none; border: none; padding: 5px; }
-    }
-  </style>
-</head>
-<body>
-
-<div class="sidebar">
-  <h2>NEXUS</h2>
-  <a href="index.html">💰 Venta</a>
-  <a href="bodega.html">📦 Bodega</a>
-  <a href="deuda.html">💸 Deudas</a>
-  <a href="analisis.html">🔍 Historial</a>
-  <a href="caja.html">💵 Caja</a>
-  <a href="cliente.html">👤 Clientes</a>
-</div>
-
-<div class="main">
-  <div class="header">🏦 Control de Caja</div>
-
-  <div class="contenido">
-
-    <div class="card">
-      <h3>🟢 Abrir Caja</h3>
-      <input id="monto" type="number" placeholder="Monto inicial en efectivo" step="0.01">
-      <button onclick="abrir()">Abrir</button>
-    </div>
-
-    <div class="card">
-      <h3>📊 Estado de Caja</h3>
-      <div class="aviso">⚠️ Transferencias contadas <b>solo en caja</b>, no en ventas, para evitar duplicados.</div>
-      <div class="estado-row"><span>Apertura</span><span>$<span id="apertura">0.00</span></span></div>
-      <div class="estado-row"><span>Ventas (efectivo)</span><span>$<span id="ingresos">0.00</span></span></div>
-      <div class="estado-row">
-        <span>
-          Transferencias
-          <span class="badge" onclick="toggleDetalle()">ver detalle</span>
-        </span>
-        <span>$<span id="transferencias">0.00</span></span>
-      </div>
-      <div class="trans-detalle" id="detalleTransferencias">
-        <i style="color:#999">Cargando...</i>
-      </div>
-      <div class="estado-row"><span>Gastos</span><span>- $<span id="gastos">0.00</span></span></div>
-      <div class="estado-row">
-        <span class="saldo">Saldo Total</span>
-        <span class="saldo">$<span id="saldo">0.00</span></span>
-      </div>
-      <button onclick="cargar()">🔄 Actualizar</button>
-    </div>
-
-    <div class="card">
-      <h3>💸 Registrar Gasto</h3>
-      <input id="gasto" type="number" placeholder="Monto del gasto" step="0.01">
-      <input id="motivo" type="text" placeholder="Motivo del gasto">
-      <button onclick="registrarGasto()">Registrar Gasto</button>
-    </div>
-
-    <div class="card">
-      <h3>🔴 Cerrar Caja</h3>
-      <p style="font-size:13px;color:#666;margin-bottom:8px;">El ticket imprimirá el detalle completo de transferencias (banco, comprobante, monto).</p>
-      <button onclick="abrirModalCierre()">Cerrar Caja</button>
-    </div>
-
-  </div>
-
-  <div class="historial-section">
-    <div class="historial-header">
-      <h3>📋 Historial de Cierres</h3>
-      <button class="btn-borrar-todo" onclick="pedirBorrarTodo()">🗑️ Borrar Todo el Historial</button>
-    </div>
-    <div id="historialContainer">
-      <div class="historial-vacio">Cargando historial...</div>
-    </div>
-  </div>
-
-</div>
-
-<div class="modal-overlay" id="modalOverlay">
-  <div class="modal-box">
-    <h3 id="modalTitulo">🔒 Confirmar Acción</h3>
-    <p id="modalDesc">Ingresa los datos para continuar.</p>
-    
-    <div id="modalInputsContainer"></div>
-    
-    <div class="modal-btns">
-      <button onclick="cancelarModal()" class="btn-gray">Cancelar</button>
-      <button onclick="confirmarModal()" class="btn-danger" id="modalBtnConfirmar">Confirmar</button>
-    </div>
-  </div>
-</div>
-
-<script>
-
-const API = "https://agronaranjito-1.onrender.com";
-const HISTORIAL_KEY = "caja_historial";
-const PASSWORD = "agro123";
-
-let transferenciasList = [];
-let modalAccion = null;
-
-// Variables globales del frontend
-let cajaActual = { apertura: 0, ingresos: 0, transferencias: 0, gastos: 0, saldo: 0 };
-
-// ===================== HELPER DE PRECISIÓN MATEMÁTICA =====================
-function limpiarNumero(val) {
-  const num = Number(val);
-  if (isNaN(num)) return 0;
-  // Redondea matemáticamente a 2 decimales para eliminar residuos de punto flotante
-  return Math.round((num + Number.EPSILON) * 100) / 100;
+// =========================================================================
+// 1. CONFIGURACIÓN DE FIREBASE ADMIN SDK
+// =========================================================================
+if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+  console.error("❌ ERROR CRÍTICO: La variable de entorno FIREBASE_SERVICE_ACCOUNT no está configurada.");
+  process.exit(1);
 }
 
-// ===================== HELPERS HISTORIAL =====================
-function getHistorial() {
-  try {
-    const data = localStorage.getItem(HISTORIAL_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch(e) { 
-    console.error('Error al leer historial:', e);
-    return []; 
-  }
+try {
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+  console.log("✅ ¡Conectado exitosamente a Firebase Cloud Firestore!");
+} catch (error) {
+  console.error("❌ Error crítico al procesar FIREBASE_SERVICE_ACCOUNT:", error.message);
+  process.exit(1);
 }
 
-function setHistorial(arr) {
-  try {
-    localStorage.setItem(HISTORIAL_KEY, JSON.stringify(arr));
-  } catch(e) {
-    console.error('Error al guardar historial:', e);
-  }
-}
+const db = admin.firestore();
 
-function guardarCierreEnHistorial(data) {
-  try {
-    let historial = getHistorial();
-    const ahora = new Date();
-    
-    const aperturaVal = limpiarNumero(data.apertura ?? cajaActual.apertura);
-    const ingresosVal = limpiarNumero(data.ingresos ?? cajaActual.ingresos);
-    const transVal    = limpiarNumero(data.transferencias ?? cajaActual.transferencias);
-    const gastosVal   = limpiarNumero(data.gastos ?? cajaActual.gastos);
-    const saldoVal    = limpiarNumero(data.saldo ?? cajaActual.saldo);
-    
-    const realVal     = limpiarNumero(data.real ?? data.montoReal ?? 0);
-    const esperadoVal = limpiarNumero(data.esperado ?? (aperturaVal + ingresosVal - gastosVal));
-    const difVal      = limpiarNumero(data.diferencia ?? (realVal - esperadoVal));
-
-    const nuevoRegistro = {
-     id: Date.now(),
-     fecha: ahora.toLocaleDateString('es-EC', { weekday:'long', year:'numeric', month:'long', day:'numeric' }),
-     fechaISO: ahora.toISOString().split('T')[0],
-     hora: ahora.toLocaleTimeString('es-EC', { hour:'2-digit', minute:'2-digit' }),
-     apertura:       aperturaVal,
-     ingresos:       ingresosVal,
-     transferencias: transVal,
-     gastos:         gastosVal,
-     saldo:          saldoVal,
-     esperado:       esperadoVal,
-     real:           realVal,
-     diferencia:     difVal,
-     dejar:          limpiarNumero(data.dejar ?? 0),
-     gastosLista:        data.gastosLista        || [],
-     transferenciasList: data.transferenciasList || [],
-    };
-    
-    historial.unshift(nuevoRegistro);
-    setHistorial(historial);
-  } catch(e) {
-    console.error('Error al estructurar cierre en historial:', e);
-  }
-}
-
-// ===================== RENDER HISTORIAL =====================
-function renderHistorial() {
-  const historial = getHistorial();
-  const cont = document.getElementById('historialContainer');
-
-  if (!historial || historial.length === 0) {
-    cont.innerHTML = '<div class="historial-vacio">📭 No hay cierres registrados aún.</div>';
-    return;
-  }
-  
-  cont.innerHTML = historial.map((item, i) => `
-    <div class="hist-item" id="hist-item-${i}">
-      <div class="hist-item-header">
-        <div>
-          <div class="hist-fecha">📅 ${capitalizar(item.fecha)}</div>
-          <div class="hist-hora">🕐 Cerrada a las ${item.hora}</div>
-        </div>
-        <div class="hist-actions">
-          <div class="hist-saldo-badge">$${limpiarNumero(item.saldo).toFixed(2)}</div>
-          <button class="btn-toggle-hist" onclick="toggleHist(${i})">Ver ▼</button>
-          <button class="btn-del-dia" onclick="pedirBorrarDia(${i})">🗑️</button>
-        </div>
-      </div>
-      <div class="hist-item-body" id="hist-body-${i}">
-        <div class="hist-row"><span>Apertura</span><span>$${limpiarNumero(item.apertura).toFixed(2)}</span></div>
-        <div class="hist-row"><span>Ventas (efectivo)</span><span>$${limpiarNumero(item.ingresos).toFixed(2)}</span></div>
-        <div class="hist-row"><span>Transferencias</span><span>$${limpiarNumero(item.transferencias).toFixed(2)}</span></div>
-        <div class="hist-row"><span>Gastos</span><span>- $${limpiarNumero(item.gastos).toFixed(2)}</span></div>
-        <div class="hist-row"><span>Saldo total</span><span style="color:green;font-weight:bold;">$${limpiarNumero(item.saldo).toFixed(2)}</span></div>
-        <div class="hist-row" style="margin-top:6px;"><span>Esperado en caja</span><span>$${limpiarNumero(item.esperado).toFixed(2)}</span></div>
-        <div class="hist-row"><span>Real contado</span><span>$${limpiarNumero(item.real).toFixed(2)}</span></div>
-        <div class="hist-row"><span>Diferencia</span><span style="color:${item.diferencia < 0 ? 'red' : '#2e7d32'}">$${limpiarNumero(item.diferencia).toFixed(2)}</span></div>
-        <div class="hist-row"><span>Dejado en caja</span><span>$${limpiarNumero(item.dejar).toFixed(2)}</span></div>
-      </div>
-    </div>
-  `).join('');
-}
-
-function capitalizar(str) {
-  if (!str) return '';
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-// ===================== ENGINE MODAL =====================
-function toggleHist(i) {
-  const body = document.getElementById(`hist-body-${i}`);
-  const btn  = document.querySelector(`#hist-item-${i} .btn-toggle-hist`);
-  const abierto = body.classList.toggle('abierto');
-  btn.textContent = abierto ? 'Cerrar ▲' : 'Ver ▼';
-}
-
-function abrirModal(titulo, desc, inputsHTML, accion) {
-  document.getElementById('modalTitulo').textContent = titulo;
-  document.getElementById('modalDesc').textContent   = desc;
-  document.getElementById('modalInputsContainer').innerHTML = inputsHTML;
-  modalAccion = accion;
-  document.getElementById('modalOverlay').classList.add('activo');
-  
-  const primerInput = document.getElementById('modalInputsContainer').querySelector('input');
-  if (primerInput) setTimeout(() => primerInput.focus(), 100);
-}
-
-function cancelarModal() {
-  document.getElementById('modalOverlay').classList.remove('activo');
-  document.getElementById('modalInputsContainer').innerHTML = '';
-  modalAccion = null;
-}
-
-function confirmarModal() {
-  if (modalAccion) {
-    modalAccion();
-  }
-}
-
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') cancelarModal();
-});
-
-// ===================== ACCIONES DEL MODAL =====================
-function pedirBorrarDia(i) {
-  const historial = getHistorial();
-  const item = historial[i];
-  if (!item) return;
-
-  const inputsHTML = `<input type="password" id="passBorrar" placeholder="Contraseña de Seguridad">`;
-  
-  abrirModal(
-    '🗑️ Borrar este cierre',
-    `¿Eliminar el cierre del ${capitalizar(item.fecha)}?`,
-    inputsHTML,
-    () => {
-      const pass = document.getElementById('passBorrar').value;
-      if(pass !== PASSWORD) return alert('❌ Contraseña incorrecta');
-      
-      historial.splice(i, 1);
-      setHistorial(historial);
-      renderHistorial();
-      cancelarModal();
-    }
-  );
-}
-
-function pedirBorrarTodo() {
-  const historial = getHistorial();
-  if (!historial.length) return alert('El historial ya está vacío.');
-
-  const inputsHTML = `<input type="password" id="passBorrarTodo" placeholder="Contraseña de Seguridad">`;
-
-  abrirModal(
-    '🗑️ Borrar TODO el historial',
-    `Vas a eliminar ${historial.length} cierre(s) permanentemente.`,
-    inputsHTML,
-    () => {
-      const pass = document.getElementById('passBorrarTodo').value;
-      if(pass !== PASSWORD) return alert('❌ Contraseña incorrecta');
-      
-      setHistorial([]);
-      renderHistorial();
-      cancelarModal();
-      alert('✅ Historial eliminado correctamente');
-    }
-  );
-}
-
-function abrirModalCierre() {
-  const inputsHTML = `
-    <input type="number" id="cierreReal" placeholder="¿Cuánto dinero EFECTIVO hay en caja?" step="0.01">
-    <input type="number" id="cierreDejar" placeholder="¿Cuánto dinero vas a DEJAR en caja?" step="0.01">
-  `;
-  
-  abrirModal(
-    '🔴 Procesar Cierre de Caja',
-    'Ingresa los montos finales auditados en la caja física.',
-    inputsHTML,
-    async () => {
-      const real = document.getElementById('cierreReal').value;
-      const dejar = document.getElementById('cierreDejar').value || 0;
-
-      if (!real || isNaN(real) || Number(real) < 0) return alert("Por favor ingresa un monto real de efectivo válido");
-      
-      cancelarModal();
-      await ejecutarCierreBackend(Number(real), Number(dejar));
-    }
-  );
-}
-
-// ===================== INTERACCIONES DE FLUJO (API) =====================
-function toggleDetalle() {
-  let d = document.getElementById('detalleTransferencias');
-  d.style.display = d.style.display === 'block' ? 'none' : 'block';
-}
-
-function construirListaTransferencias(data) {
-  let lista = [...(data?.transferenciasList || []), ...(data?.transferenciasLista || [])];
-  let idsIncluidos = new Set(lista.map(t => t._id).filter(Boolean));
-  let movimientos = data?.movimientos || [];
-  movimientos.forEach(m => {
-    if (m.banco && !idsIncluidos.has(m._id)) {
-      lista.push(m);
-      idsIncluidos.add(m._id);
+// =========================================================================
+// 2. CONFIGURACIÓN DE NODEMAILER CON BREVO SMTP (DATOS REALES)
+// =========================================================================
+let transporter = null;
+if (process.env.BREVO_SMTP_KEY) {
+  transporter = nodemailer.createTransport({
+    host: 'smtp-relay.brevo.com',
+    port: 465,
+    secure: true,
+    auth: {
+      user: 'ad85ef001@smtp-brevo.com',
+      pass: process.env.BREVO_SMTP_KEY
+    },
+    tls: {
+      rejectUnauthorized: false
     }
   });
-  return lista;
-}
 
-function renderDetalle(lista) {
-  let d = document.getElementById('detalleTransferencias');
-  if (!lista || lista.length === 0) {
-    d.innerHTML = '<i style="color:#999">Sin transferencias registradas</i>';
-    return;
-  }
-  d.innerHTML = lista.map(t => `
-    <div class="trans-item">
-      🏦 <b>${t.banco || 'Sin banco'}</b> &nbsp;|&nbsp;
-      🔢 Comp: <b>${t.comprobante || 'S/N'}</b> &nbsp;|&nbsp;
-      💵 $<b>${limpiarNumero(t.monto).toFixed(2)}</b>
-      ${t.motivo ? `<br><span style="color:#888;font-size:11px;">📝 ${t.motivo}</span>` : ''}
-    </div>
-  `).join('');
-}
-
-async function cargar() {
-  try {
-    let res = await fetch(API + '/caja');
-    if (!res.ok) throw new Error("Error HTTP de respuesta");
-    let data = await res.json();
-
-    // Guardar y normalizar números en memoria limpia
-    cajaActual.apertura       = limpiarNumero(data?.apertura       ?? 0);
-    cajaActual.ingresos       = limpiarNumero(data?.ingresos       ?? 0);
-    cajaActual.gastos         = limpiarNumero(data?.gastos         ?? 0);
-    cajaActual.saldo          = limpiarNumero(data?.saldo          ?? 0);
-    cajaActual.transferencias = limpiarNumero(data?.transferencias ?? 0);
-
-    // Renderizar forzando exactamente dos decimales
-    document.getElementById('apertura').innerText       = cajaActual.apertura.toFixed(2);
-    document.getElementById('ingresos').innerText       = cajaActual.ingresos.toFixed(2);
-    document.getElementById('gastos').innerText         = cajaActual.gastos.toFixed(2);
-    document.getElementById('saldo').innerText          = cajaActual.saldo.toFixed(2);
-    document.getElementById('transferencias').innerText = cajaActual.transferencias.toFixed(2);
-
-    transferenciasList = construirListaTransferencias(data);
-    renderDetalle(transferenciasList);
-
-  } catch (e) {
-    console.error('Error cargando caja:', e);
-    ['apertura','ingresos','gastos','saldo','transferencias'].forEach(id => document.getElementById(id).innerText = '0.00');
-    document.getElementById('detalleTransferencias').innerHTML = '<i style="color:red">❌ Error de conexión</i>';
-  }
-}
-
-async function abrir() {
-  let monto = Number(document.getElementById('monto').value);
-  if (!monto || monto <= 0) return alert("Monto inicial inválido");
-
-  try {
-    let res = await fetch(API + '/caja/abrir', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ monto: limpiarNumero(monto) })
-    });
-    if(res.ok) {
-      let data = await res.json();
-      alert(data.error || "Caja abierta ✔");
-      document.getElementById('monto').value = "";
-      cargar();
+  transporter.verify((err) => {
+    if (err) {
+      console.warn("⚠️ Brevo SMTP error de verificación:", err.message);
     } else {
-      alert("❌ No se pudo abrir la caja. Verifica si ya existe una abierta.");
+      console.log("📧 Relay Brevo SMTP listo para despachar facturas a clientes.");
+      // Inicializar el guardián de caducidades una vez que el SMTP esté verificado
+      iniciarGuardianCaducidades();
     }
-  } catch {
-    alert("❌ Error de red al intentar abrir la caja");
-  }
+  });
+} else {
+  console.warn("⚠️ BREVO_SMTP_KEY no configurado en Render. Envío de correos inhabilitado.");
 }
 
-async function registrarGasto() {
-  let monto  = Number(document.getElementById('gasto').value);
-  let motivo = document.getElementById('motivo').value || "Sin motivo";
+// ── Helper: Generación dinámica del cuerpo HTML del comprobante ───────────
+function generarHTMLCorreo(datos, carrito, tipoPago) {
+  const {
+    cliente, cedula, subtotal, pct, descuentoMonto, totalFinal,
+    tasaPct, montoInteres, meses, pago, vuelto,
+    bancoNombre, bancoCuenta, comprobante
+  } = datos;
 
-  if (!monto || monto <= 0) return alert("Monto de gasto inválido");
+  const fecha = new Date().toLocaleString("es-EC", { dateStyle: "long", timeStyle: "short" });
+
+  const filas = (carrito || []).map(p => `
+    <tr>
+      <td style="padding:8px 10px; border-bottom:1px solid #f0f0f0; text-align:left;">${p.nombre}</td>
+      <td style="padding:8px 10px; border-bottom:1px solid #f0f0f0; text-align:center;">${p.amount || p.cantidad}</td>
+      <td style="padding:8px 10px; border-bottom:1px solid #f0f0f0; text-align:right;">$${Number(p.precio).toFixed(2)}</td>
+      <td style="padding:8px 10px; border-bottom:1px solid #f0f0f0; text-align:right; font-weight:bold;">$${(Number(p.precio) * Number(p.amount || p.cantidad)).toFixed(2)}</td>
+    </tr>
+  `).join("");
+
+  let detallePago = "";
+  if (tipoPago === "efectivo") {
+    detallePago = `
+      <tr><td style="padding:4px 0; color:#555;">Monto Recibido</td><td style="text-align:right; font-weight:500;">$${Number(pago).toFixed(2)}</td></tr>
+      <tr><td style="padding:4px 0; color:#555;">Vuelto Entregado</td><td style="text-align:right; font-weight:500;">$${Number(vuelto).toFixed(2)}</td></tr>
+    `;
+  } else if (tipoPago === "transferencia") {
+    detallePago = `
+      <tr><td style="padding:4px 0; color:#555;">Entidad Bancaria</td><td style="text-align:right; font-weight:500;">${bancoNombre}</td></tr>
+      <tr><td style="padding:4px 0; color:#555;">Nº de Cuenta</td><td style="text-align:right; font-family:monospace;">${bancoCuenta}</td></tr>
+      <tr><td style="padding:4px 0; color:#555;">Nº Referencia / Código</td><td style="text-align:right; font-weight:bold; color:#1e272e;">${comprobante}</td></tr>
+    `;
+  } else if (tipoPago === "credito") {
+    detallePago = `
+      <tr><td style="padding:4px 0; color:#555;">Tasa Diferido (${tasaPct}%)</td><td style="text-align:right; color:#e67e22;">+$${Number(montoInteres).toFixed(2)}</td></tr>
+      <tr><td style="padding:4px 0; color:#555;">Plazo Acordado</td><td style="text-align:right; font-weight:500;">${meses} meses</td></tr>
+    `;
+  }
+
+  const descuentoRow = Number(pct) > 0 ? `
+    <tr>
+      <td style="padding:4px 0; color:#555;">Subtotal Bruto</td>
+      <td style="text-align:right;">$${Number(subtotal).toFixed(2)}</td>
+    </tr>
+    <tr>
+      <td style="padding:4px 0; color:#e03329;">Descuento Aplicado (${pct}%)</td>
+      <td style="text-align:right; color:#e03329; font-weight:500;">-$${Number(descuentoMonto).toFixed(2)}</td>
+    </tr>
+  ` : "";
+
+  const tipoBadgeColor = tipoPago === "efectivo" ? "#27ae60" : tipoPago === "transferencia" ? "#2980b9" : "#e67e22";
+
+  return `
+  <!DOCTYPE html>
+  <html lang="es">
+  <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+  <body style="margin:0; padding:0; background-color:#f5f6fa; font-family:'Segoe UI',Arial,sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f6fa; padding:30px 0;">
+      <tr><td align="center">
+        <table width="540" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.06);">
+          <tr>
+            <td style="background-color:#ff3f34; padding:26px 30px; text-align:center;">
+              <h1 style="margin:0; color:#ffffff; font-size:24px; letter-spacing:1px; font-weight:700;">AGRO NARANJITO #1</h1>
+              <p style="margin:4px 0 0; color:rgba(255,255,255,0.85); font-size:13px;">Comprobante Digital de Venta · ${fecha}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 30px 10px;">
+              <p style="margin:0 0 4px; font-size:12px; color:#888; text-transform:uppercase; letter-spacing:.5px;">Titular del Documento</p>
+              <p style="margin:0; font-size:17px; font-weight:600; color:#1e272e;">${cliente || "Consumidor Final"}</p>
+              ${cedula ? `<p style="margin:4px 0 0; font-size:13px; color:#555;"><b>RUC / Cédula:</b> ${cedula}</p>` : ""}
+              <span style="display:inline-block; margin-top:10px; padding:4px 14px; background-color:${tipoBadgeColor}; color:#ffffff; border-radius:20px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.3px;">${tipoPago}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:15px 30px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:5px;">
+                <thead>
+                  <tr style="background-color:#f8f9fa;">
+                    <th style="padding:10px; text-align:left; font-size:12px; color:#777; font-weight:600; text-transform:uppercase; border-bottom:1px solid #ddd;">Detalle</th>
+                    <th style="padding:10px; text-align:center; font-size:12px; color:#777; font-weight:600; text-transform:uppercase; border-bottom:1px solid #ddd; width:50px;">Cant.</th>
+                    <th style="padding:10px; text-align:right; font-size:12px; color:#777; font-weight:600; text-transform:uppercase; border-bottom:1px solid #ddd; width:80px;">P. Unit</th>
+                    <th style="padding:10px; text-align:right; font-size:12px; color:#777; font-weight:600; text-transform:uppercase; border-bottom:1px solid #ddd; width:90px;">Total</th>
+                  </tr>
+                </thead>
+                <tbody>${filas}</tbody>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:10px 30px 25px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                ${descuentoRow}
+                ${detallePago}
+                <tr>
+                  <td colspan="2"><hr style="border:none; border-top:2px dashed #f0f0f0; margin:12px 0;"></td>
+                </tr>
+                <tr>
+                  <td style="font-size:16px; font-weight:700; color:#1e272e;">IMPORTE NETO RECAUDADO</td>
+                  <td style="text-align:right; font-size:22px; font-weight:700; color:#ff3f34;">$${Number(totalFinal).toFixed(2)}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#f8f9fa; padding:20px 30px; text-align:center; border-top:1px solid #f0f0f0;">
+              <p style="margin:0; font-size:14px; color:#2c3e50; font-weight:500;">¡Gracias por depositar su confianza en nosotros! 😊</p>
+              <p style="margin:4px 0 0; font-size:11px; color:#7f8c8d;">Agro Naranjito #1 · Nota: Este documento digital es un comprobante automático de caja.</p>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>
+  </html>
+  `;
+}
+
+const mapearDocs = (snapshot) => {
+  const docs = [];
+  snapshot.forEach(doc => docs.push({ _id: doc.id, ...doc.data() }));
+  return docs;
+};
+
+// =========================================================================
+// 2.5 MOTOR DE ALERTAS ACTIVAS - GUARDIÁN DE CADUCIDADES (NUEVO)
+// =========================================================================
+async function ejecutarRevisionCaducidades() {
+  if (!transporter) return console.log("⚠️ Guardián abortado: Brevo SMTP no configurado.");
+  console.log("🕒 Guardián de Inventario: Iniciando escaneo diario de caducidades...");
 
   try {
-    let res = await fetch(API + '/caja/gasto', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ monto: limpiarNumero(monto), motivo })
+    const snapshot = await db.collection('productos').get();
+    const hoy = new Date();
+    hoy.setHours(0,0,0,0);
+
+    let listaVencidos = [];
+    let listaCriticos = [];
+    let listaPreventivos = [];
+
+    snapshot.forEach(doc => {
+      const p = doc.data();
+      if (p.caducidad) {
+        let fechaProd = new Date(p.caducidad + "T00:00:00");
+        let diffTiempo = fechaProd - hoy;
+        let diffDias = Math.ceil(diffTiempo / (1000 * 60 * 60 * 24));
+
+        const item = {
+          nombre: p.nombre || "Sin Nombre",
+          codigo: p.codigo || "-",
+          stock: p.stock ?? 0,
+          fecha: p.caducidad,
+          dias: diffDias
+        };
+
+        if (diffDias < 0) {
+          listaVencidos.push(item);
+        } else if (diffDias <= 30) {
+          listaCriticos.push(item);
+        } else if (diffDias <= 90) {
+          listaPreventivos.push(item);
+        }
+      }
     });
-    if(res.ok) {
-      let data = await res.json();
-      alert(data.error || "Gasto registrado ✔");
-      document.getElementById('gasto').value  = "";
-      document.getElementById('motivo').value = "";
-      cargar();
-    } else {
-      alert("❌ El servidor rechazó el registro del gasto");
+
+    // Si no hay novedades de riesgo, no enviamos spam a tu bandeja de entrada
+    if (listaVencidos.length === 0 && listaCriticos.length === 0 && listaPreventivos.length === 0) {
+      console.log("✅ Guardián de Inventario: Cero productos en riesgo de caducidad hoy.");
+      return;
     }
-  } catch {
-    alert("❌ Error conexión");
-  }
-}
 
-async function ejecutarCierreBackend(montoReal, dejar) {
-  try {
-    let res = await fetch(API + '/caja/cerrar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ montoReal: limpiarNumero(montoReal), dejar: limpiarNumero(dejar) })
-    });
-    
-    if(!res.ok) throw new Error("Error en cierre");
-    let data = await res.json();
+    // Construcción del reporte consolidado en HTML estructurado
+    const mapearFilasHTML = (arr, badgeColor, textoBadge) => arr.map(i => `
+      <tr>
+        <td style="padding:10px; border-bottom:1px solid #eee; text-align:left;"><b>${i.nombre}</b><br><small style="color:#777;">Cód: ${i.codigo}</small></td>
+        <td style="padding:10px; border-bottom:1px solid #eee; text-align:center; font-weight:bold;">${i.stock} un.</td>
+        <td style="padding:10px; border-bottom:1px solid #eee; text-align:center; font-family:monospace;">${i.fecha}</td>
+        <td style="padding:10px; border-bottom:1px solid #eee; text-align:right;"><span style="background:${badgeColor}; color:white; padding:3px 8px; border-radius:5px; font-size:12px; font-weight:bold;">${textoBadge} (${i.dias < 0 ? 'Hace ' + Math.abs(i.dias) : i.dias} d)</span></td>
+      </tr>
+    `).join("");
 
-    if (!data.error) {
-      data.montoReal = limpiarNumero(montoReal);
-      data.dejar = limpiarNumero(dejar);
-
-      guardarCierreEnHistorial(data);
-      renderHistorial();
-      imprimirFactura(data);
-      alert("Caja cerrada de forma exitosa ✔");
-      cargar();
-    } else {
-      alert(data.error);
-    }
-  } catch (e) {
-    console.error('Error cerrando caja:', e);
-    alert("❌ Error de comunicación con el servidor. No se cerró la sesión de caja.");
-  }
-}
-
-function imprimirFactura(data) {
-  let lista = construirListaTransferencias(data);
-  if (!lista.length) lista = transferenciasList || [];
-
-  let transHTML = lista.length
-    ? lista.map(t => `
-        <tr>
-          <td>${t.banco       || 'S/B'}</td>
-          <td>${t.comprobante || 'S/N'}</td>
-          <td>$${limpiarNumero(t.monto).toFixed(2)}</td>
-          <td style="font-size:10px;color:#555">${t.motivo || ''}</td>
-        </tr>
-      `).join('')
-    : '<tr><td colspan="4" style="color:#999">Sin transferencias</td></tr>';
-
-  let gastosHTML = (data.gastosLista && data.gastosLista.length)
-    ? data.gastosLista.map(g => `- $${limpiarNumero(g.monto).toFixed(2)} | ${g.motivo}<br>`).join('')
-    : 'Sin gastos registrados';
-
-  // Cálculos limpios con fallbacks matemáticos estrictos
-  const apertura = limpiarNumero(data.apertura ?? cajaActual.apertura);
-  const ingresos = limpiarNumero(data.ingresos ?? cajaActual.ingresos);
-  const gastos   = limpiarNumero(data.gastos   ?? cajaActual.gastos);
-  const trans    = limpiarNumero(data.transferencias ?? cajaActual.transferencias);
-  const esp      = limpiarNumero(data.esperado ?? (apertura + ingresos - gastos));
-  const real     = limpiarNumero(data.real ?? data.montoReal ?? 0);
-  const dif      = limpiarNumero(data.diferencia ?? (real - esp));
-  const dejarAmt = limpiarNumero(data.dejar ?? 0);
-
-  let ventana = window.open("", "_blank", "width=400,height=700");
-  ventana.document.write(`
+    let cuerpoHtml = `
+    <!DOCTYPE html>
     <html>
-    <head>
-      <title>Cierre Caja</title>
-      <style>
-        body { font-family: monospace; width: 80mm; padding: 10px; font-size: 12px; }
-        h2 { text-align: center; margin-bottom: 8px; }
-        .linea { border-top: 1px dashed #000; margin: 8px 0; }
-        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 4px; }
-        th { text-align: left; border-bottom: 1px solid #000; padding: 2px 0; }
-        td { padding: 2px 2px; }
-        .total { font-weight: bold; font-size: 13px; }
-      </style>
-    </head>
-    <body>
-      <h2>📄 CIERRE DE CAJA</h2>
-      <div class="linea"></div>
-      <p>Apertura:           $${apertura.toFixed(2)}</p>
-      <p>Ventas (efectivo):  $${ingresos.toFixed(2)}</p>
-      <p>Gastos:           - $${gastos.toFixed(2)}</p>
-      <div class="linea"></div>
-      <b>Detalle Transferencias:</b>
-      <table>
-        <tr>
-          <th>Banco</th>
-          <th>Comp.</th>
-          <th>Monto</th>
-          <th>Motivo</th>
-        </tr>
-        ${transHTML}
-      </table>
-      <p><b>Total Transferencias: $${trans.toFixed(2)}</b></p>
-      <div class="linea"></div>
-      <b>Detalle Gastos:</b><br>
-      ${gastosHTML}
-      <div class="linea"></div>
-      <p>Esperado:    $${esp.toFixed(2)}</p>
-      <p>Real:        $${real.toFixed(2)}</p>
-      <p>Diferencia:  $${dif.toFixed(2)}</p>
-      <div class="linea"></div>
-      <p class="total">Dejado en caja: $${dejarAmt.toFixed(2)}</p>
-      <div class="linea"></div>
-      <p>${new Date().toLocaleString()}</p>
-      <script>window.onload = () => { window.print(); window.close(); }<\/script>
+    <head><meta charset="UTF-8"></head>
+    <body style="font-family:'Segoe UI',sans-serif; background:#f4f6f9; padding:20px; color:#333;">
+      <div style="max-width:650px; background:white; margin:0 auto; border-radius:12px; overflow:hidden; box-shadow:0 4px 10px rgba(0,0,0,0.05); border-top:5px solid #ff3f34;">
+        <div style="background:#1e272e; padding:20px; text-align:center; color:white;">
+          <h2 style="margin:0;">🚨 NEXUS — REPORTE DE CADUCIDADES</h2>
+          <p style="margin:5px 0 0; color:#aaa; font-size:14px;">Control de vencimientos automático para Agro Naranjito #1</p>
+        </div>
+        <div style="padding:24px;">
+          <p>Estimado Administrador, se han localizado las siguientes alertas prioritarias en su bodega:</p>
+          
+          <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:15px;">
+            <thead>
+              <tr style="background:#f8f9fa; border-bottom:2px solid #ddd; font-size:13px; color:#555;">
+                <th style="padding:10px; text-align:left;">Producto</th>
+                <th style="padding:10px; text-align:center;">Stock</th>
+                <th style="padding:10px; text-align:center;">Fecha Venc.</th>
+                <th style="padding:10px; text-align:right;">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${listaVencidos.length ? mapearFilasHTML(listaVencidos, '#e74c3c', '⚠️ Vencido') : ''}
+              ${listaCriticos.length ? mapearFilasHTML(listaCriticos, '#e67e22', '⏳ Crítico') : ''}
+              ${listaPreventivos.length ? mapearFilasHTML(listaPreventivos, '#f1c40f', '🕒 3 Meses') : ''}
+            </tbody>
+          </table>
+          
+          <p style="margin-top:25px; font-size:13px; color:#7f8c8d; text-align:center;">Nexus Core System · Este correo se genera automáticamente cada 24 horas.</p>
+        </div>
+      </div>
     </body>
-    </html>
-  `);
-  ventana.document.close();
+    </html>`;
+
+    // Enviar reporte consolidado a la cuenta administrativa configurada en el relay
+    await transporter.sendMail({
+      from:    '"NEXUS Guardián" <ad85ef001@smtp-brevo.com>',
+      to:      'ad85ef001@smtp-brevo.com', // Cambiar aquí si deseas redirigirlo a otro correo administrativo personal
+      subject: `🚨 ALERTA BODEGA: ${listaVencidos.length} Vencidos / ${listaCriticos.length} Críticos detectados`,
+      html:    cuerpoHtml
+    });
+
+    console.log("📧 Correo consolidado de alertas enviado exitosamente al administrador.");
+  } catch (error) {
+    console.error("❌ Fallo en el proceso automatizado del Guardián:", error.message);
+  }
 }
 
-// Inicialización de arranque
-cargar();
-renderHistorial();
+// Inicializa el bucle de tiempo para que se repita de forma exacta cada 24 horas en producción
+function iniciarGuardianCaducidades() {
+  // Ejecución inmediata al encender el motor del backend
+  setTimeout(ejecutarRevisionCaducidades, 5000);
+  
+  // Intervalo fijo de 24 horas en milisegundos
+  const VEINTICUATRO_HORAS = 1000 * 60 * 60 * 24;
+  setInterval(ejecutarRevisionCaducidades, VEINTICUATRO_HORAS);
+}
 
-</script>
-</body>
-</html>
+
+// =========================================================================
+// 3. ENDPOINTS API REST
+// =========================================================================
+
+app.get('/health', (req, res) => {
+  res.json({ ok: true, message: "NEXUS Core Engine activo", time: new Date() });
+});
+
+// Endpoint manual de contingencia por si deseas forzar la revisión desde el navegador o Postman
+app.get('/inventario/forzar-alerta', async (req, res) => {
+  await ejecutarRevisionCaducidades();
+  res.json({ ok: true, mensaje: "Escaneo del guardián forzado manualmente." });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Helper interno: registrar un movimiento de inventario en Firestore
+// ─────────────────────────────────────────────────────────────────────────
+async function registrarMovimiento({ tipo, codigo, nombre, cantidad, motivo }) {
+  const ahora = new Date();
+  await db.collection('movimientos-inventario').add({
+    tipo:     tipo     || "entrada",
+    codigo:   codigo   || "-",
+    nombre:   nombre   || "Sin Nombre",
+    cantidad: Number(cantidad || 0),
+    fecha:    ahora.toISOString().split('T')[0],
+    hora:     ahora.toLocaleTimeString('es-EC', { hour12: false }),
+    motivo:   motivo   || "Actualización manual"
+  });
+}
+
+app.get('/productos', async (req, res) => {
+  try {
+    const snapshot = await db.collection('productos').get();
+    res.json(mapearDocs(snapshot));
+  } catch (err) {
+    console.error("Error al obtener productos:", err);
+    res.json([]);
+  }
+});
+
+app.post('/productos', async (req, res) => {
+  try {
+    const nuevoProducto = {
+      codigo: req.body.codigo || "",
+      nombre: req.body.nombre || "Sin Nombre",
+      precioCompra: Number(req.body.precioCompra || 0),
+      precioVenta: Number(req.body.precioVenta || 0),
+      stock: Number(req.body.stock || 0),
+      caducidad: req.body.caducidad ? req.body.caducidad : null
+    };
+    await db.collection('productos').add(nuevoProducto);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Error interno al crear producto" });
+  }
+});
+
+app.put('/productos/:id', async (req, res) => {
+  try {
+    const actualizaciones = {};
+    if (req.body.codigo !== undefined) actualizaciones.codigo = req.body.codigo;
+    if (req.body.nombre !== undefined) actualizaciones.nombre = req.body.nombre;
+    if (req.body.precioCompra !== undefined) actualizaciones.precioCompra = Number(req.body.precioCompra);
+    if (req.body.precioVenta !== undefined) actualizaciones.precioVenta = Number(req.body.precioVenta);
+    if (req.body.stock !== undefined) actualizaciones.stock = Number(req.body.stock);
+    if (req.body.caducidad !== undefined) actualizaciones.caducidad = req.body.caducidad ? req.body.caducidad : null;
+
+    await db.collection('productos').doc(req.params.id).update(actualizaciones);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Error interno al editar propiedades del producto" });
+  }
+});
+
+app.put('/productos/agregar/:id', async (req, res) => {
+  try {
+    const docRef = db.collection('productos').doc(req.params.id);
+    const doc = await docRef.get();
+    if (!doc.exists) return res.status(404).json({ error: "Documento objetivo inexistente" });
+    const p = doc.data();
+
+    const updates = { stock: (p.stock || 0) + Number(req.body.cantidad) };
+    if (req.body.caducidad !== undefined) updates.caducidad = req.body.caducidad;
+
+    await docRef.update(updates);
+
+    await registrarMovimiento({
+      tipo:     "entrada",
+      codigo:   p.codigo || "-",
+      nombre:   p.nombre || "Sin Nombre",
+      cantidad: Number(req.body.cantidad),
+      motivo:   req.body.motivo || "Reabastecimiento de bodega"
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Error interno al reaprovisionar stock" });
+  }
+});
+
+app.put('/productos/vender/:id', async (req, res) => {
+  try {
+    const docRef = db.collection('productos').doc(req.params.id);
+    const doc = await docRef.get();
+    if (!doc.exists) return res.status(404).json({ error: "El producto no existe en el catálogo" });
+    const p = doc.data();
+    let nuevoStock = (p.stock || 0) - Number(req.body.cantidad);
+    if (nuevoStock < 0) nuevoStock = 0;
+    await docRef.update({ stock: nuevoStock });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Error de inventario al procesar el descuento posventa" });
+  }
+});
+
+app.delete('/productos/:id', async (req, res) => {
+  try {
+    await db.collection('productos').doc(req.params.id).delete();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Error interno al purgar producto" });
+  }
+});
+
+// =========================================================================
+// HISTORIAL DE MOVIMIENTOS DE INVENTARIO
+// =========================================================================
+
+app.get('/movimientos-inventario', async (req, res) => {
+  try {
+    const snapshot = await db.collection('movimientos-inventario').orderBy('fecha', 'desc').get();
+    res.json(mapearDocs(snapshot));
+  } catch (err) {
+    console.error("❌ Error al obtener movimientos de inventario:", err);
+    res.status(500).json([]);
+  }
+});
+
+app.post('/movimientos-inventario', async (req, res) => {
+  try {
+    const nuevoMovimiento = {
+      tipo:     req.body.tipo     || "entrada",
+      codigo:   req.body.codigo   || "-",
+      nombre:   req.body.nombre   || "Sin Nombre",
+      cantidad: Number(req.body.cantidad || 0),
+      fecha:    req.body.fecha    || new Date().toISOString().split('T')[0],
+      hora:     req.body.hora     || new Date().toLocaleTimeString('es-EC', { hour12: false }),
+      motivo:   req.body.motivo   || "Actualización manual"
+    };
+
+    await db.collection('movimientos-inventario').add(nuevoMovimiento);
+    res.json({ ok: true, mensaje: "Movimiento asentado en auditoría" });
+  } catch (err) {
+    console.error("❌ Error al guardar movimiento en Firestore:", err);
+    res.status(500).json({ error: "Error interno al guardar el historial" });
+  }
+});
+
+// =========================================================================
+// CLIENTES
+// =========================================================================
+
+app.post('/clientes', async (req, res) => {
+  try {
+    const nuevoCliente = {
+      nombre:      req.body.nombre     || "Sin Nombre",
+      cedula:      req.body.cedula     || "Sin Cédula",
+      direccion:   req.body.direccion  || "",
+      telefono:    req.body.telefono   || "",
+      correo:      req.body.correo     || "",
+      deudaTotal:  Number(req.body.deudaTotal  || 0),
+      deudaActual: Number(req.body.deudaActual || 0),
+      estado:      req.body.estado     || "normal",
+      fecha:       req.body.fecha ? new Date(req.body.fecha).toISOString() : new Date().toISOString()
+    };
+    const resultado = await db.collection('clientes').add(nuevoCliente);
+    res.json({ ok: true, cliente: { _id: resultado.id, ...nuevoCliente } });
+  } catch (err) {
+    console.error("❌ Error registrando cliente:", err);
+    res.status(500).json({ error: "Error de persistencia", detalle: err.message });
+  }
+});
+
+app.get('/clientes', async (req, res) => {
+  try {
+    const snapshot = await db.collection('clientes').orderBy('fecha', 'desc').get();
+    res.json(mapearDocs(snapshot));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json([]);
+  }
+});
+
+app.post('/clientes/sumar-deuda', async (req, res) => {
+  try {
+    const { cedula, total } = req.body;
+    const snapshot = await db.collection('clientes').where('cedula', '==', cedula).get();
+    if (snapshot.empty) return res.status(404).json({ error: "Cliente no registrado en la base de datos" });
+    const docRef = snapshot.docs[0].ref;
+    const cliente = snapshot.docs[0].data();
+    const deudaTotal  = (cliente.deudaTotal  || 0) + Number(total);
+    const deudaActual = (cliente.deudaActual || 0) + Number(total);
+    await docRef.update({ deudaTotal, deudaActual, estado: "deudor" });
+    res.json({ ok: true, cliente: { _id: docRef.id, ...cliente, deudaTotal, deudaActual, estado: "deudor" } });
+  } catch (err) {
+    res.status(500).json({ error: "Error crítico al cargar línea de crédito" });
+  }
+});
+
+app.post('/clientes/abonar', async (req, res) => {
+  try {
+    const { cedula, monto } = req.body;
+    const snapshot = await db.collection('clientes').where('cedula', '==', cedula).get();
+    if (snapshot.empty) return res.status(404).json({ error: "Titular no encontrado" });
+    const docRef = snapshot.docs[0].ref;
+    const cliente = snapshot.docs[0].data();
+    let deudaActual = (cliente.deudaActual || 0) - Number(monto);
+    let estado = cliente.estado;
+    if (deudaActual <= 0) { deudaActual = 0; estado = "normal"; }
+    await docRef.update({ deudaActual, estado });
+    res.json({ ok: true, cliente: { _id: docRef.id, ...cliente, deudaActual, estado } });
+  } catch (err) {
+    res.status(500).json({ error: "Error de red al aplicar abono parcial" });
+  }
+});
+
+app.put('/clientes/editar', async (req, res) => {
+  try {
+    const { id, nombre, cedula, telefono, correo } = req.body;
+    await db.collection('clientes').doc(id).update({ nombre, cedula, telefono, correo });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Error al regresar ficha de cliente" });
+  }
+});
+
+app.get('/clientes/:cedula', async (req, res) => {
+  try {
+    const snapshot = await db.collection('clientes').where('cedula', '==', req.params.cedula).get();
+    if (snapshot.empty) return res.json(null);
+    res.json({ _id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
+  } catch (err) {
+    res.status(500).json(null);
+  }
+});
+
+app.delete('/clientes/:id', async (req, res) => {
+  try {
+    await db.collection('clientes').doc(req.params.id).delete();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "No se pudo eliminar el cliente seleccionado" });
+  }
+});
+
+// =========================================================================
+// CORREO
+// =========================================================================
+
+app.post('/correo/factura', async (req, res) => {
+  console.log("📨 Petición entrante POST /correo/factura para:", req.body?.correo);
+  const { correo, datos, carrito, tipoPago } = req.body;
+
+  if (!correo) {
+    return res.status(400).json({ error: "La dirección de correo destinataria es obligatoria." });
+  }
+  if (!transporter) {
+    return res.status(503).json({ error: "El servicio SMTP de Brevo no está configurado o inicializado." });
+  }
+
+  try {
+    const htmlFactura = generarHTMLCorreo(datos, carrito, tipoPago);
+    const subject     = `🧾 Comprobante Digital — ${datos?.cliente || "Cliente"} · Total: $${Number(datos?.totalFinal || 0).toFixed(2)}`;
+
+    await transporter.sendMail({
+      from:    '"Agro Naranjito #1" <ad85ef001@smtp-brevo.com>',
+      to:      correo,
+      subject,
+      html:    htmlFactura
+    });
+
+    console.log(`📧 Factura despachada con éxito a: ${correo}`);
+    res.json({ ok: true, mensaje: `Correo enviado satisfactoriamente a ${correo}` });
+  } catch (err) {
+    console.error("❌ Error crítico en Brevo SMTP:", err.message);
+    res.status(500).json({ error: "Fallo crítico al despachar correo electrónico.", detalle: err.message });
+  }
+});
+
+// =========================================================================
+// VENTAS
+// =========================================================================
+
+app.post('/ventas', async (req, res) => {
+  try {
+    const nuevaVenta = {
+      ...req.body,
+      fecha: req.body.fecha ? new Date(req.body.fecha).toISOString() : new Date().toISOString()
+    };
+
+    await db.collection('ventas').add(nuevaVenta);
+
+    if (Array.isArray(req.body.productos)) {
+      const cliente = req.body.cliente || "Consumidor Final";
+      for (const p of req.body.productos) {
+        await registrarMovimiento({
+          tipo:     "salida",
+          codigo:   p.codigo || "-",
+          nombre:   p.nombre || "Sin Nombre",
+          cantidad: Number(p.amount || p.cantidad || 1),
+          motivo:   `Venta — Cliente: ${cliente}`
+        });
+      }
+    }
+
+    const cajasSnapshot = await db.collection('cajas').where('activa', '==', true).get();
+    if (!cajasSnapshot.empty) {
+      const cajaRef = cajasSnapshot.docs[0].ref;
+      const caja    = cajasSnapshot.docs[0].data();
+
+      if (req.body.tipo === "efectivo" || req.body.tipo === "transferencia") {
+        caja.ingresos = (caja.ingresos || 0) + Number(req.body.total || 0);
+        if (!caja.movimientos) caja.movimientos = [];
+
+        if (req.body.tipo === "efectivo") {
+          caja.movimientos.push({ tipo: "ingreso", monto: req.body.total, motivo: `Venta directa efectivo - Cliente: ${req.body.cliente}`, fecha: new Date().toISOString() });
+        } else {
+          caja.movimientos.push({
+            tipo:        "transferencia",
+            monto:       Number(req.body.total || 0),
+            motivo:      `Liquidación por Transferencia — ${req.body.banco || ""}`,
+            banco:       req.body.banco       || "",
+            cuenta:      req.body.cuenta      || "",
+            comprobante: req.body.comprobante || "",
+            remitente:   req.body.cliente     || "",
+            fecha:       new Date().toISOString()
+          });
+        }
+        await cajaRef.update(caja);
+      }
+    }
+
+    if (req.body.tipo === "credito") {
+      await db.collection('deudas').add({
+        cliente:   req.body.cliente,
+        cedula:    req.body.cedula    || "SIN CÉDULA",
+        celular:   req.body.celular   || "",
+        correo:    req.body.correo    || "",
+        direccion: req.body.direccion || "",
+        total:     req.body.total,
+        pagado:    0,
+        productos: req.body.productos || [],
+        pagos:     [],
+        fecha:     new Date().toISOString()
+      });
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Fallo del sistema al asentar venta" });
+  }
+});
+
+app.delete('/ventas/producto/:ventaId/:indice', async (req, res) => {
+  try {
+    const docRef = db.collection('ventas').doc(req.params.ventaId);
+    const doc    = await docRef.get();
+    if (!doc.exists) return res.status(404).json({ error: "Registro de transacción no localizado" });
+
+    const venta  = doc.data();
+    const indice = Number(req.params.indice);
+    if (isNaN(indice) || indice < 0 || indice >= venta.productos.length) {
+      return res.status(400).json({ error: "Direccionamiento indexado incorrecto" });
+    }
+
+    venta.productos.splice(indice, 1);
+
+    if (venta.productos.length === 0) {
+      await docRef.delete();
+      return res.json({ msg: "Transacción purgada en su totalidad" });
+    } else {
+      venta.total = venta.productos.reduce((sum, p) => sum + (Number(p.precio || 0) * Number(p.amount || p.cantidad || 1)), 0);
+      await docRef.update({ productos: venta.productos, total: venta.total });
+      res.json({ msg: "Item removido e importes recalculados." });
+    }
+  } catch (err) {
+    res.status(500).json({ error: "Error al modificar la venta consolidada" });
+  }
+});
+
+app.delete('/ventas/dia', async (req, res) => {
+  try {
+    const { fecha } = req.body;
+    if (!fecha) return res.status(400).json({ error: "Parámetro fecha ausente" });
+
+    const inicio = new Date(fecha + "T00:00:00.000Z").toISOString();
+    const fin    = new Date(fecha + "T23:59:59.999Z").toISOString();
+
+    const snapshot = await db.collection('ventas')
+      .where('fecha', '>=', inicio)
+      .where('fecha', '<=', fin)
+      .get();
+
+    const batch = db.batch();
+    snapshot.docs.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+
+    res.json({ ok: true, msg: `Cierre forzado: ${snapshot.size} venta(s) eliminada(s)`, deleted: snapshot.size });
+  } catch (err) {
+    res.status(500).json({ error: "Fallo al purgar registros diarios" });
+  }
+});
+
+// =========================================================================
+// DEUDAS
+// =========================================================================
+
+app.get('/deudas', async (req, res) => {
+  try {
+    const snapshot = await db.collection('deudas').orderBy('fecha', 'desc').get();
+    res.json(mapearDocs(snapshot));
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+app.post('/deudas', async (req, res) => {
+  try {
+    const nueva = {
+      cliente:   req.body.cliente   || "",
+      cedula:    req.body.cedula    || "-",
+      celular:   req.body.celular   || "",
+      direccion: req.body.direccion || "",
+      correo:    req.body.correo    || "",
+      total:     Number(req.body.total || 0),
+      pagado:    0,
+      productos: req.body.productos || [],
+      pagos:     [],
+      fecha:     req.body.fecha ? new Date(req.body.fecha).toISOString() : new Date().toISOString()
+    };
+    const resultado = await db.collection('deudas').add(nueva);
+    res.json({ _id: resultado.id, ...nueva });
+  } catch (err) {
+    res.status(500).json({ error: "No se pudo aperturar la cuenta por cobrar" });
+  }
+});
+
+app.post('/deudas/pagar', async (req, res) => {
+  try {
+    const docRef = db.collection('deudas').doc(req.body.id);
+    const doc    = await docRef.get();
+    if (!doc.exists) return res.json({ error: "Cuenta de deuda no localizada" });
+
+    const deuda   = doc.data();
+    const monto   = Number(req.body.monto);
+    if (!monto || monto <= 0) return res.json({ error: "Importe introducido inválido" });
+
+    const restante = deuda.total - deuda.pagado;
+    if (monto > restante) return res.json({ error: "Sobrepago no permitido para el saldo restante" });
+
+    deuda.pagado += monto;
+    if (!deuda.pagos) deuda.pagos = [];
+    deuda.pagos.push({ monto, fecha: new Date().toISOString() });
+    await docRef.update(deuda);
+
+    const cajasSnapshot = await db.collection('cajas').where('activa', '==', true).get();
+    if (!cajasSnapshot.empty) {
+      const cajaRef = cajasSnapshot.docs[0].ref;
+      const caja    = cajasSnapshot.docs[0].data();
+      const metodoPago  = req.body.metodoPago  || "efectivo";
+      const banco       = req.body.banco       || "";
+      const comprobante = req.body.comprobante || "";
+
+      caja.ingresos = (caja.ingresos || 0) + monto;
+      if (!caja.movimientos) caja.movimientos = [];
+
+      if (metodoPago === "transferencia") {
+        caja.movimientos.push({ tipo: "transferencia", monto, motivo: `Abono a Cuenta Diferida — ${deuda.cliente}`, banco, comprobante, remitente: deuda.cliente || "", fecha: new Date().toISOString() });
+      } else {
+        caja.movimientos.push({ tipo: "ingreso", monto, motivo: `Abono Efectivo Deuda — ${deuda.cliente}`, fecha: new Date().toISOString() });
+      }
+      await cajaRef.update(caja);
+    }
+
+    res.json({
+      cliente:   deuda.cliente,
+      cedula:    deuda.cedula    || "-",
+      celular:   deuda.celular   || "",
+      monto,
+      total:     deuda.total,
+      restante:  deuda.total - deuda.pagado,
+      pagado:    deuda.pagado,
+      pagos:     deuda.pagos    || [],
+      productos: deuda.productos || []
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Fallo crítico al asentar amortización" });
+  }
+});
+
+app.put('/deudas/:id', async (req, res) => {
+  try {
+    const docRef = db.collection('deudas').doc(req.params.id);
+    const doc    = await docRef.get();
+    if (!doc.exists) return res.status(404).json({ error: "Cuenta no encontrada" });
+
+    const deuda = doc.data();
+    if (req.body.cliente   !== undefined) deuda.cliente   = req.body.cliente;
+    if (req.body.cedula    !== undefined) deuda.cedula    = req.body.cedula;
+    if (req.body.celular   !== undefined) deuda.celular   = req.body.celular;
+    if (req.body.direccion !== undefined) deuda.direccion = req.body.direccion;
+    if (req.body.total     !== undefined) deuda.total     = Number(req.body.total);
+    if (req.body.productos !== undefined) deuda.productos = req.body.productos;
+    if (req.body.pagado    !== undefined) deuda.pagado    = Number(req.body.pagado);
+    if (req.body.pagos     !== undefined) deuda.pagos     = req.body.pagos;
+
+    await docRef.update(deuda);
+    res.json({ ok: true, deuda: { _id: docRef.id, ...deuda } });
+  } catch (err) {
+    res.status(500).json({ error: "Fallo técnico al editar balance de deuda" });
+  }
+});
+
+app.delete('/deudas/:id', async (req, res) => {
+  try {
+    await db.collection('deudas').doc(req.params.id).delete();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Error de borrado" });
+  }
+});
+
+// =========================================================================
+// CAJA — CON MOVIMIENTOS UNIFICADOS (CAJA + INVENTARIO)
+// =========================================================================
+
+app.post('/caja/abrir', async (req, res) => {
+  try {
+    const monto = Number(req.body.monto);
+    if (!monto || monto <= 0) return res.json({ error: "Capital inicial de apertura no válido" });
+
+    const abiertaSnapshot = await db.collection('cajas').where('activa', '==', true).get();
+    if (!abiertaSnapshot.empty) {
+      await abiertaSnapshot.docs[0].ref.update({ activa: false, horaCierre: new Date().toISOString() });
+    }
+
+    await db.collection('cajas').add({
+      apertura:     monto,
+      ingresos:     0,
+      gastos:       0,
+      activa:       true,
+      horaApertura: new Date().toISOString(),
+      movimientos:  [{ tipo: "inicio", monto, motivo: "Apertura operativa de caja", fecha: new Date().toISOString() }]
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Error crítico al perturbar estado de caja" });
+  }
+});
+
+app.get('/caja', async (req, res) => {
+  try {
+    const snapshot = await db.collection('cajas').where('activa', '==', true).get();
+    if (snapshot.empty) {
+      return res.json({ apertura: 0, ingresos: 0, gastos: 0, transferencias: 0, saldo: 0 });
+    }
+
+    const caja = snapshot.docs[0].data();
+    let transferencias = 0;
+    const gastosLista        = [];
+    const transferenciasList = [];
+    const movimientosCaja    = [];
+
+    (caja.movimientos || []).forEach(m => {
+      if (m.tipo === "transferencia") {
+        transferencias += m.monto;
+        transferenciasList.push(m);
+        movimientosCaja.push({
+          tipo:         "entrada",
+          producto:     `Transferencia — ${m.banco || ""}`,
+          cantidad:     m.monto || 0,
+          fecha:        m.fecha,
+          horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
+          nota:         m.comprobante ? `Ref: ${m.comprobante}` : ""
+        });
+      }
+      if (m.tipo === "gasto") {
+        gastosLista.push(m);
+        movimientosCaja.push({
+          tipo:         "salida",
+          producto:     m.motivo || "Gasto de caja",
+          cantidad:     m.monto  || 0,
+          fecha:        m.fecha,
+          horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
+          nota:         "Egreso"
+        });
+      }
+      if (m.tipo === "ingreso") {
+        movimientosCaja.push({
+          tipo:         "entrada",
+          producto:     m.motivo || "Ingreso",
+          cantidad:     m.monto  || 0,
+          fecha:        m.fecha,
+          horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
+          nota:         "Ingreso efectivo"
+        });
+      }
+    });
+
+    const apertura = new Date(caja.horaApertura).getTime();
+    const ahora    = Date.now();
+
+    const movInvSnapshot = await db.collection('movimientos-inventario')
+      .orderBy('fecha', 'desc')
+      .limit(500)
+      .get();
+
+    movInvSnapshot.forEach(doc => {
+      const m            = doc.data();
+      const fechaHoraStr = `${m.fecha}T${m.hora || "00:00:00"}`;
+      const ts           = new Date(fechaHoraStr).getTime();
+
+      if (ts >= apertura && ts <= ahora) {
+        movimientosCaja.push({
+          tipo:         m.tipo === "entrada" ? "entrada" : "salida",
+          producto:     m.nombre   || m.motivo || "Producto",
+          cantidad:     m.cantidad || 0,
+          fecha:        fechaHoraStr,
+          horaRegistro: m.hora || new Date(fechaHoraStr).toLocaleTimeString('es-EC'),
+          nota:         m.motivo   || "",
+          codigo:       m.codigo   || ""
+        });
+      }
+    });
+
+    movimientosCaja.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+    res.json({
+      apertura:          caja.apertura,
+      ingresos:          caja.ingresos,
+      transferencias,
+      gastos:            caja.gastos,
+      saldo:             caja.apertura + caja.ingresos - caja.gastos,
+      horaApertura:      caja.horaApertura,
+      gastosLista,
+      transferenciasList,
+      movimientos:       movimientosCaja
+    });
+  } catch (err) {
+    console.error("❌ Error al leer caja activa:", err.message);
+    res.json({ apertura: 0, ingresos: 0, gastos: 0, transferencias: 0, saldo: 0 });
+  }
+});
+
+app.post('/caja/gasto', async (req, res) => {
+  try {
+    const snapshot = await db.collection('cajas').where('activa', '==', true).get();
+    if (snapshot.empty) return res.json({ error: "Ninguna terminal de caja se encuentra activa" });
+
+    const docRef = snapshot.docs[0].ref;
+    const caja   = snapshot.docs[0].data();
+    const monto  = Number(req.body.monto || 0);
+    const motivo = req.body.motivo || "Gasto misceláneo de caja";
+    if (!monto || monto <= 0) return res.json({ error: "Importe inválido" });
+
+    caja.gastos = (caja.gastos || 0) + monto;
+    if (!caja.movimientos) caja.movimientos = [];
+    caja.movimientos.push({ tipo: "gasto", monto, motivo, fecha: new Date().toISOString() });
+    await docRef.update(caja);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Error de red al consolidar débito" });
+  }
+});
+
+app.post('/caja/ingreso', async (req, res) => {
+  try {
+    const snapshot = await db.collection('cajas').where('activa', '==', true).get();
+    if (snapshot.empty) return res.json({ error: "Ninguna terminal de caja se encuentra activa" });
+
+    const docRef = snapshot.docs[0].ref;
+    const caja   = snapshot.docs[0].data();
+    const monto  = Number(req.body.monto || 0);
+    const motivo = req.body.motivo || req.body.producto || "Entrada de mercadería";
+    if (!monto || monto <= 0) return res.json({ error: "Importe inválido" });
+
+    caja.ingresos = (caja.ingresos || 0) + monto;
+    if (!caja.movimientos) caja.movimientos = [];
+    caja.movimientos.push({
+      tipo:         "ingreso",
+      monto,
+      motivo,
+      producto:     req.body.producto     || motivo,
+      cantidad:     monto,
+      nota:         req.body.nota         || "",
+      horaRegistro: req.body.horaRegistro || new Date().toLocaleTimeString('es-EC'),
+      fecha:        new Date().toISOString()
+    });
+    await docRef.update(caja);
+
+    await registrarMovimiento({
+      tipo:     "entrada",
+      codigo:   req.body.codigo  || "-",
+      nombre:   req.body.producto || motivo,
+      cantidad: monto,
+      motivo:   req.body.nota    || "Entrada registrada desde panel de flujo"
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Error al registrar ingreso de mercadería" });
+  }
+});
+
+app.post('/caja/transferencia', async (req, res) => {
+  try {
+    const snapshot = await db.collection('cajas').where('activa', '==', true).get();
+    if (snapshot.empty) return res.json({ error: "La caja se encuentra cerrada" });
+
+    const docRef = snapshot.docs[0].ref;
+    const caja   = snapshot.docs[0].data();
+    const monto  = Number(req.body.monto || 0);
+    if (!monto || monto <= 0) return res.json({ error: "Importe bancario fuera de rango" });
+
+    caja.ingresos = (caja.ingresos || 0) + monto;
+    if (!caja.movimientos) caja.movimientos = [];
+    caja.movimientos.push({
+      tipo:        "transferencia",
+      monto,
+      motivo:      `Ingreso directo por transferencia - ${req.body.banco || ""}`,
+      banco:       req.body.banco       || "",
+      cuenta:      req.body.cuenta      || "",
+      comprobante: req.body.comprobante || "",
+      remitente:   req.body.remitente   || "",
+      fecha:       new Date().toISOString()
+    });
+    await docRef.update(caja);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Fallo de comunicación en asiento bancario" });
+  }
+});
+
+app.post('/caja/cerrar', async (req, res) => {
+  try {
+    const snapshot = await db.collection('cajas').where('activa', '==', true).get();
+    if (snapshot.empty) return res.json({ error: "No hay actividades vigentes en caja" });
+
+    const docRef = snapshot.docs[0].ref;
+    const caja   = snapshot.docs[0].data();
+    const real   = Number(req.body.montoReal);
+    const dejar  = Number(req.body.dejar || 0);
+    const esperado   = caja.apertura + caja.ingresos - caja.gastos;
+    const diferencia = real - esperado;
+
+    let transferencias = 0;
+    const gastosLista = [], transferenciasList = [];
+    (caja.movimientos || []).forEach(m => {
+      if (m.tipo === "gasto")         gastosLista.push(m);
+      if (m.tipo === "transferencia") { transferenciasList.push(m); transferencias += m.monto; }
+    });
+
+    caja.activa     = false;
+    caja.cierre     = real;
+    caja.horaCierre = new Date().toISOString();
+    caja.dejado     = dejar;
+    caja.movimientos.push({ tipo: "cierre", monto: real, motivo: `Cierre contable de jornada | Fondo retenido: $${dejar}`, fecha: new Date().toISOString() });
+    await docRef.update(caja);
+
+    if (dejar > 0) {
+      await db.collection('cajas').add({
+        apertura:     dejar,
+        ingresos:     0,
+        gastos:       0,
+        activa:       true,
+        horaApertura: new Date().toISOString(),
+        movimientos:  [{ tipo: "inicio", monto: dejar, motivo: "Fondo de apertura automático poscierre", fecha: new Date().toISOString() }]
+      });
+    }
+
+    res.json({ apertura: caja.apertura, ingresos: caja.ingresos, transferencias, gastos: caja.gastos, esperado, real, diferencia, dejar, fechaApertura: caja.horaApertura, fechaCierre: caja.horaCierre, gastosLista, transferenciasList, movimientos: caja.movimientos });
+  } catch (err) {
+    res.status(500).json({ error: "Fallo general en protocolo de arqueo" });
+  }
+});
+
+app.get('/caja/historial', async (req, res) => {
+  try {
+    const snapshot = await db.collection('cajas')
+      .where('activa', '==', false)
+      .orderBy('horaCierre', 'desc')
+      .limit(50)
+      .get();
+
+    const movInvSnapshot = await db.collection('movimientos-inventario')
+      .orderBy('fecha', 'desc')
+      .get();
+
+    const todosMovInv = [];
+    movInvSnapshot.forEach(doc => todosMovInv.push({ _id: doc.id, ...doc.data() }));
+
+    const historial = mapearDocs(snapshot).map(c => {
+      let transferencias = 0;
+      const gastosLista        = [];
+      const transferenciasList = [];
+      const movimientos        = [];
+
+      (c.movimientos || []).forEach(m => {
+        if (m.tipo === "gasto") {
+          gastosLista.push(m);
+          movimientos.push({
+            tipo:         "salida",
+            producto:     m.motivo || "Gasto de caja",
+            cantidad:     m.monto  || 0,
+            fecha:        m.fecha,
+            horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
+            nota:         "Egreso de caja"
+          });
+        }
+        if (m.tipo === "transferencia") {
+          transferenciasList.push(m);
+          transferencias += m.monto;
+          movimientos.push({
+            tipo:         "entrada",
+            producto:     `Transferencia — ${m.banco || ""}`,
+            cantidad:     m.monto || 0,
+            fecha:        m.fecha,
+            horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
+            nota:         m.comprobante ? `Ref: ${m.comprobante}` : ""
+          });
+        }
+        if (m.tipo === "ingreso") {
+          movimientos.push({
+            tipo:         "entrada",
+            producto:     m.motivo || "Ingreso de caja",
+            cantidad:     m.monto  || 0,
+            fecha:        m.fecha,
+            horaRegistro: m.fecha ? new Date(m.fecha).toLocaleTimeString('es-EC') : "",
+            nota:         "Ingreso efectivo"
+          });
+        }
+      });
+
+      const apertura = new Date(c.horaApertura).getTime();
+      const cierre   = new Date(c.horaCierre).getTime();
+
+      todosMovInv.forEach(m => {
+        const fechaHoraStr = `${m.fecha}T${m.hora || "00:00:00"}`;
+        const ts = new Date(fechaHoraStr).getTime();
+
+        if (ts >= apertura && ts <= cierre) {
+          movimientos.push({
+            tipo:         m.tipo === "entrada" ? "entrada" : "salida",
+            producto:     m.nombre   || m.motivo || "Producto",
+            cantidad:     m.cantidad || 0,
+            fecha:        fechaHoraStr,
+            horaRegistro: m.hora || new Date(fechaHoraStr).toLocaleTimeString('es-EC'),
+            nota:         m.motivo   || "",
+            codigo:       m.codigo   || ""
+          });
+        }
+      });
+
+      movimientos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+      return {
+        fechaApertura:    c.horaApertura,
+        fechaCierre:      c.horaCierre,
+        apertura:         c.apertura,
+        ingresos:         c.ingresos,
+        transferencias,
+        gastos:           c.gastos,
+        real:             c.cierre,
+        esperado:         c.apertura + c.ingresos - c.gastos,
+        diferencia:       c.cierre - (c.apertura + c.ingresos - c.gastos),
+        dejar:            c.dejado || 0,
+        gastosLista,
+        transferenciasList,
+        movimientos
+      };
+    });
+
+    res.json(historial);
+  } catch (err) {
+    console.error("❌ Error en historial de cajas:", err.message);
+    res.status(500).json({ error: "Fallo de lectura en base histórica" });
+  }
+});
+
+
+// ================== BORRAR CIERRE POR ID ==================
+app.delete('/caja/historial/:id', async (req, res) => {
+  try {
+    const result = await Caja.findByIdAndDelete(req.params.id);
+    if (!result) return res.status(404).json({ error: "Registro no encontrado" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("Error DELETE /caja/historial/:id", err);
+    res.status(500).json({ error: "Error al eliminar cierre" });
+  }
+});
+
+// ================== BORRAR TODO EL HISTORIAL ==================
+app.delete('/caja/historial', async (req, res) => {
+  try {
+    const result = await Caja.deleteMany({ activa: false });
+    res.json({ ok: true, eliminados: result.deletedCount });
+  } catch (err) {
+    console.error("Error DELETE /caja/historial", err);
+    res.status(500).json({ error: "Error al borrar historial" });
+  }
+});
+
+// =========================================================================
+// ANÁLISIS
+// =========================================================================
+
+app.get('/analisis', async (req, res) => {
+  try {
+    const snapshot = await db.collection('ventas').get();
+    const ventas   = mapearDocs(snapshot);
+
+    let totalGeneral = 0, efectivo = 0, credito = 0, transferencia = 0;
+    const productos = {}, porDia = {}, porMes = {};
+
+    ventas.forEach(v => {
+      const total = Number(v.total || 0);
+      totalGeneral += total;
+      if (v.tipo === "efectivo")      efectivo++;
+      if (v.tipo === "credito")       credito++;
+      if (v.tipo === "transferencia") transferencia++;
+
+      let dia = "Desconocido", mes = "Desconocido";
+      try { if (v.fecha) { dia = v.fecha.split("T")[0]; mes = v.fecha.slice(0, 7); } } catch (_) {}
+
+      porDia[dia] = (porDia[dia] || 0) + total;
+      porMes[mes] = (porMes[mes] || 0) + total;
+
+      if (Array.isArray(v.productos)) {
+        v.productos.forEach(p => {
+          const nombre   = p.nombre   || "Sin nombre";
+          const cantidad = Number(p.amount || p.cantidad || 1);
+          const precio   = Number(p.precio   || 0);
+          const costo    = Number(p.precioCosto || p.costo || 0);
+          const ganancia = (precio - costo) * cantidad;
+
+          if (!productos[nombre]) productos[nombre] = { nombre, vendidos: 0, ganancia: 0 };
+          productos[nombre].vendidos += cantidad;
+          productos[nombre].ganancia += ganancia;
+        });
+      }
+    });
+
+    const lista         = Object.values(productos);
+    const masVendidos   = [...lista].sort((a, b) => b.vendidos  - a.vendidos ).slice(0, 5);
+    const menosVendidos = [...lista].sort((a, b) => a.vendidos  - b.vendidos ).slice(0, 5);
+    const masGanancia   = [...lista].sort((a, b) => b.ganancia  - a.ganancia ).slice(0, 5);
+    const menosGanancia = [...lista].sort((a, b) => a.ganancia  - b.ganancia ).slice(0, 5);
+    const clientesUnicos = new Set(ventas.map(v => v.cedula || v.cliente)).size;
+
+    res.json({ ventas, totalGeneral, efectivo, credito, transferencia, clientes: clientesUnicos, porDia, porMes, masVendidos, menosVendidos, masGanancia, menosGanancia });
+  } catch (err) {
+    res.status(500).json({ error: "Fallo al procesar métricas gerenciales de auditoría" });
+  }
+});
+
+// =========================================================================
+// INVENTARIO — CADUCIDADES
+// =========================================================================
+app.get('/inventario/caducidades', async (req, res) => {
+  try {
+    const snapshot = await db.collection('productos').get();
+    const productos = [];
+
+    snapshot.forEach(doc => {
+      const p = doc.data();
+      if (p.caducidad) {
+        productos.push({
+          _id:              doc.id,
+          nombre:           p.nombre       || "Sin Nombre",
+          codigo:           p.codigo       || "-",
+          fechaVencimiento: p.caducidad,
+          stock:            p.stock        ?? 0,
+          precioVenta:      p.precioVenta  || 0,
+          precioCompra:     p.precioCompra || 0
+        });
+      }
+    });
+
+    productos.sort((a, b) => new Date(a.fechaVencimiento) - new Date(b.fechaVencimiento));
+
+    res.json(productos);
+  } catch (err) {
+    console.error("❌ Error al leer caducidades:", err.message);
+    res.status(500).json({ error: "Error al obtener caducidades de Firestore" });
+  }
+});
+
+// =========================================================================
+// 4. INICIALIZACIÓN
+// =========================================================================
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Motor NEXUS encendido en el puerto base asignado: ${PORT}`);
+});
