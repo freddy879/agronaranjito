@@ -5,149 +5,85 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body {
-      font-family: Arial;
-      margin: 0;
-      display: flex;
-      background: #f4f4f4;
-    }
-    .sidebar {
-      width: 220px;
-      background: #1e272e;
-      color: white;
-      height: 100vh;
-      padding: 20px;
-    }
-    .sidebar a {
-      display: block;
-      color: white;
-      padding: 10px;
-      text-decoration: none;
-      margin-top: 10px;
-      border-radius: 6px;
-    }
+    body { font-family: Arial; margin: 0; display: flex; background: #f4f4f4; }
+    .sidebar { width: 220px; background: #1e272e; color: white; height: 100vh; padding: 20px; }
+    .sidebar a { display: block; color: white; padding: 10px; text-decoration: none; margin-top: 10px; border-radius: 6px; }
     .sidebar a:hover { background: #485460; }
-    .main { flex: 1; }
-    .header {
-      background: #ff3f34;
-      color: white;
-      padding: 15px;
-      font-size: 20px;
-    }
+    .main { flex: 1; overflow-y: auto; }
+    .header { background: #ff3f34; color: white; padding: 15px; font-size: 20px; }
     .container { padding: 20px; }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 15px;
-      margin-bottom: 20px;
-    }
-    .card {
-      background: white;
-      padding: 15px;
-      border-radius: 10px;
-      box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-    }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+    .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 3px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
     .big { font-size: 22px; font-weight: bold; }
-    button {
-      padding: 10px;
-      border: none;
-      background: #ff3f34;
-      color: white;
-      border-radius: 6px;
-      cursor: pointer;
-      margin-top: 5px;
-    }
+    button { padding: 10px; border: none; background: #ff3f34; color: white; border-radius: 6px; cursor: pointer; margin-top: 5px; }
     button:hover { background: #e84118; }
     ul { list-style: none; padding: 0; }
     li { margin: 5px 0; }
-    input[type="date"] {
-      padding: 8px;
-      margin-top: 10px;
-      width: 100%;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-    }
-    .tag {
-      display: inline-block;
-      padding: 3px 8px;
-      border-radius: 5px;
-      font-size: 12px;
-      color: white;
-    }
-    .efectivo { background: green; }
-    .credito { background: orange; }
 
-    /* ===== MODAL CONTRASEÑA ===== */
-    #modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.55);
-      z-index: 9999;
-      justify-content: center;
+    /* FILTRO TEMPORALIDAD */
+    .filtro-tiempo {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
       align-items: center;
     }
-    #modal-overlay.activo {
-      display: flex;
-    }
-    #modal-box {
-      background: white;
-      padding: 30px;
-      border-radius: 14px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.25);
-      width: 320px;
-      text-align: center;
-    }
-    #modal-box h3 {
-      margin: 0 0 6px;
-      font-size: 20px;
-      color: #1e272e;
-    }
-    #modal-box p {
+    .filtro-tiempo button {
+      padding: 7px 16px;
+      border-radius: 20px;
       font-size: 13px;
-      color: #666;
-      margin-bottom: 18px;
-    }
-    #modal-password {
-      width: 100%;
-      padding: 10px;
-      border-radius: 8px;
-      border: 1.5px solid #ccc;
-      font-size: 16px;
-      box-sizing: border-box;
-      margin-bottom: 6px;
-      letter-spacing: 3px;
-    }
-    #modal-password:focus {
-      outline: none;
-      border-color: #ff3f34;
-    }
-    #modal-error {
-      color: #e74c3c;
-      font-size: 13px;
-      min-height: 18px;
-      margin-bottom: 10px;
-    }
-    .modal-btns {
-      display: flex;
-      gap: 10px;
-      justify-content: center;
-    }
-    .modal-btns button {
-      flex: 1;
-      margin-top: 0;
-      padding: 10px;
-      border-radius: 8px;
-      font-size: 14px;
       font-weight: bold;
+      background: #ecf0f1;
+      color: #2c3e50;
+      border: 2px solid transparent;
+      margin-top: 0;
+      transition: all 0.15s;
     }
+    .filtro-tiempo button:hover { background: #dce3e8; }
+    .filtro-tiempo button.activo {
+      background: #2980b9;
+      color: white;
+      border-color: #1a6a9a;
+    }
+    .filtro-rango {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .filtro-rango input[type="date"] {
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 13px;
+    }
+    .filtro-rango button {
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-top: 0;
+      background: #2980b9;
+    }
+    .filtro-rango button:hover { background: #1a6a9a; }
+
+    /* MODAL */
+    #modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 9999; justify-content: center; align-items: center; }
+    #modal-overlay.activo { display: flex; }
+    #modal-box { background: white; padding: 30px; border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.25); width: 320px; text-align: center; }
+    #modal-box h3 { margin: 0 0 6px; font-size: 20px; color: #1e272e; }
+    #modal-box p { font-size: 13px; color: #666; margin-bottom: 18px; }
+    #modal-password { width: 100%; padding: 10px; border-radius: 8px; border: 1.5px solid #ccc; font-size: 16px; box-sizing: border-box; margin-bottom: 6px; letter-spacing: 3px; }
+    #modal-password:focus { outline: none; border-color: #ff3f34; }
+    #modal-error { color: #e74c3c; font-size: 13px; min-height: 18px; margin-bottom: 10px; }
+    .modal-btns { display: flex; gap: 10px; justify-content: center; }
+    .modal-btns button { flex: 1; margin-top: 0; padding: 10px; border-radius: 8px; font-size: 14px; font-weight: bold; }
     #btn-confirmar { background: #e74c3c; }
     #btn-confirmar:hover { background: #c0392b; }
     #btn-cancelar { background: #7f8c8d; }
     #btn-cancelar:hover { background: #636e72; }
   </style>
 </head>
-
 <body>
 
 <!-- MODAL CONTRASEÑA -->
@@ -178,7 +114,7 @@
   <div class="header">📊 Dashboard IA Empresarial</div>
   <div class="container">
 
-    <!-- DASHBOARD -->
+    <!-- KPIs -->
     <div class="grid">
       <div class="card"><h4>💰 Total</h4><div class="big" id="total">$0</div></div>
       <div class="card"><h4>📄 Efectivo</h4><div class="big" id="efectivo">0</div></div>
@@ -194,21 +130,45 @@
       <div class="card"><h4>💸 Menos ganancia</h4><div id="gLow"></div></div>
     </div>
 
-    <!-- GRÁFICOS -->
+    <!-- GRÁFICO DÍA -->
     <div class="card">
       <h2>📊 Ventas por día</h2>
-      <canvas id="dia"></canvas>
+      <div class="filtro-tiempo" id="filtrosDia">
+        <button class="activo" onclick="setFiltro('dia','todo', this)">Todo</button>
+        <button onclick="setFiltro('dia','hoy', this)">Hoy</button>
+        <button onclick="setFiltro('dia','semana', this)">Esta semana</button>
+        <button onclick="setFiltro('dia','mes', this)">Este mes</button>
+        <button onclick="setFiltro('dia','mes_pasado', this)">Mes pasado</button>
+        <button onclick="setFiltro('dia','anio', this)">Este año</button>
+      </div>
+      <div class="filtro-rango">
+        <input type="date" id="desdeDia">
+        <span>hasta</span>
+        <input type="date" id="hastaDia">
+        <button onclick="aplicarRango('dia')">🔍 Aplicar</button>
+      </div>
+      <canvas id="dia" style="margin-top:12px"></canvas>
     </div>
+
+    <!-- GRÁFICO MES -->
     <div class="card">
       <h2>📆 Ventas por mes</h2>
-      <canvas id="mes"></canvas>
+      <div class="filtro-tiempo" id="filtrosMes">
+        <button class="activo" onclick="setFiltro('mes','todo', this)">Todo</button>
+        <button onclick="setFiltro('mes','ultimos3', this)">Últ. 3 meses</button>
+        <button onclick="setFiltro('mes','ultimos6', this)">Últ. 6 meses</button>
+        <button onclick="setFiltro('mes','anio', this)">Este año</button>
+        <button onclick="setFiltro('mes','anio_pasado', this)">Año pasado</button>
+      </div>
+      <canvas id="mes" style="margin-top:12px"></canvas>
     </div>
 
     <!-- BUSCAR -->
     <div class="card">
       <h2>🔍 Buscar historial</h2>
-      <input id="buscar" placeholder="Nombre / cédula / celular" oninput="buscar()">
-      <button onclick="cargar()">Ver todo</button>
+      <input id="buscar" placeholder="Nombre / cédula / celular" oninput="buscar()"
+        style="padding:8px;width:100%;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;">
+      <button onclick="cargar()" style="margin-top:8px">Ver todo</button>
     </div>
 
     <!-- HISTORIAL -->
@@ -221,294 +181,320 @@
 </div>
 
 <script>
-const API = "https://agronaranjito-1.onrender.com";
-const CLAVE = "agro123"; // 🔑 Cambia aquí tu contraseña
+const API   = "https://agronaranjito-1.onrender.com";
+const CLAVE = "agro123";
 
-let ventas = [];
+let ventas   = [];
 let chart1, chart2;
+let _porDia  = {};
+let _porMes  = {};
 
 // ===== MODAL =====
 let _accionPendiente = null;
-
-function abrirModal(descripcion, accion) {
+function abrirModal(desc, accion) {
   _accionPendiente = accion;
-  document.getElementById("modal-descripcion").innerText = descripcion;
+  document.getElementById("modal-descripcion").innerText = desc;
   document.getElementById("modal-password").value = "";
   document.getElementById("modal-error").innerText = "";
   document.getElementById("modal-overlay").classList.add("activo");
   setTimeout(() => document.getElementById("modal-password").focus(), 100);
 }
-
 function cerrarModal() {
   _accionPendiente = null;
   document.getElementById("modal-overlay").classList.remove("activo");
 }
-
 function confirmarModal() {
-  const ingresada = document.getElementById("modal-password").value;
-
-  if (ingresada === CLAVE) {
-
-    const accion = _accionPendiente;
-
+  const v = document.getElementById("modal-password").value;
+  if (v === CLAVE) {
+    const a = _accionPendiente;
     cerrarModal();
-
-    if (accion) accion();
-
+    if (a) a();
   } else {
     document.getElementById("modal-error").innerText = "❌ Contraseña incorrecta";
     document.getElementById("modal-password").value = "";
     document.getElementById("modal-password").focus();
   }
 }
-
-document.getElementById("modal-password").addEventListener("keydown", function(e) {
-  if (e.key === "Enter") confirmarModal();
+document.getElementById("modal-password").addEventListener("keydown", e => {
+  if (e.key === "Enter")  confirmarModal();
   if (e.key === "Escape") cerrarModal();
 });
 
-// ===== CARGAR =====
-async function cargar() {
-  const res = await fetch(API + "/analisis");
-  const data = await res.json();
-  ventas = data.ventas || [];
-
-  document.getElementById("total").innerText = "$" + (data.totalGeneral || 0).toFixed(2);
-  document.getElementById("efectivo").innerText = data.efectivo || 0;
-  document.getElementById("credito").innerText = data.credito || 0;
-  document.getElementById("clientes").innerText = data.clientes || 0;
-
-  document.getElementById("top").innerText = data.masVendidos?.[0]?.nombre || "-";
-  document.getElementById("low").innerText = data.menosVendidos?.[0]?.nombre || "-";
-  document.getElementById("gTop").innerText = data.masGanancia?.[0]?.nombre || "-";
-  document.getElementById("gLow").innerText = data.menosGanancia?.[0]?.nombre || "-";
-
-  renderCharts(data);
-  mostrar(ventas);
+// ===== UTILIDADES FECHA =====
+function ordenarObj(obj) {
+  return Object.keys(obj)
+    .sort((a, b) => parseFecha(a) - parseFecha(b))
+    .reduce((acc, k) => { acc[k] = obj[k]; return acc; }, {});
+}
+function parseFecha(s) {
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+    const [d, m, y] = s.split("/"); return new Date(`${y}-${m}-${d}`);
+  }
+  if (/^\d{4}-\d{2}$/.test(s)) return new Date(`${s}-01`); // YYYY-MM
+  return new Date(s);
+}
+function hoy()      { return new Date(); }
+function inicioSemana() {
+  const d = new Date(); d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); return d;
+}
+function inicioMes(offset = 0) {
+  const d = new Date(); d.setDate(1); d.setHours(0,0,0,0);
+  d.setMonth(d.getMonth() + offset); return d;
+}
+function finMes(offset = 0) {
+  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + offset + 1); d.setDate(0); d.setHours(23,59,59,999); return d;
+}
+function inicioAnio(offset = 0) {
+  return new Date(new Date().getFullYear() + offset, 0, 1);
 }
 
-// ===== GRÁFICOS =====
-function renderCharts(data) {
-  if (chart1) chart1.destroy();
-  if (chart2) chart2.destroy();
+// ===== FILTRAR OBJETO POR RANGO =====
+function filtrarObj(obj, desde, hasta) {
+  const result = {};
+  Object.keys(obj).forEach(k => {
+    const f = parseFecha(k);
+    if (f >= desde && f <= hasta) result[k] = obj[k];
+  });
+  return result;
+}
 
+// ===== BOTONES DE TEMPORALIDAD =====
+function setFiltro(grafico, periodo, btn) {
+  // Resaltar botón activo
+  const grupo = grafico === 'dia' ? 'filtrosDia' : 'filtrosMes';
+  document.querySelectorAll(`#${grupo} button`).forEach(b => b.classList.remove('activo'));
+  btn.classList.add('activo');
+
+  const ahora  = hoy();
+  const fin    = new Date(ahora); fin.setHours(23,59,59,999);
+  let   desde, hasta, obj;
+
+  if (grafico === 'dia') {
+    obj = _porDia;
+    switch (periodo) {
+      case 'hoy':        desde = new Date(ahora.setHours(0,0,0,0)); hasta = fin; break;
+      case 'semana':     desde = inicioSemana(); hasta = fin; break;
+      case 'mes':        desde = inicioMes();    hasta = fin; break;
+      case 'mes_pasado': desde = inicioMes(-1);  hasta = finMes(-1); break;
+      case 'anio':       desde = inicioAnio();   hasta = fin; break;
+      default:           desde = new Date(0);    hasta = fin; // todo
+    }
+    dibujarDia(filtrarObj(obj, desde, hasta));
+  } else {
+    obj = _porMes;
+    switch (periodo) {
+      case 'ultimos3':   desde = inicioMes(-2);  hasta = fin; break;
+      case 'ultimos6':   desde = inicioMes(-5);  hasta = fin; break;
+      case 'anio':       desde = inicioAnio();   hasta = fin; break;
+      case 'anio_pasado':desde = inicioAnio(-1); hasta = new Date(new Date().getFullYear()-1,11,31); break;
+      default:           desde = new Date(0);    hasta = fin;
+    }
+    dibujarMes(filtrarObj(obj, desde, hasta));
+  }
+}
+
+// ===== RANGO PERSONALIZADO =====
+function aplicarRango(grafico) {
+  const desdeVal = document.getElementById('desdeDia').value;
+  const hastaVal = document.getElementById('hastaDia').value;
+  if (!desdeVal || !hastaVal) { alert("Selecciona ambas fechas"); return; }
+  const desde = new Date(desdeVal + "T00:00:00");
+  const hasta  = new Date(hastaVal + "T23:59:59");
+  if (desde > hasta) { alert("La fecha inicial debe ser menor"); return; }
+  // Quitar activo de botones
+  document.querySelectorAll('#filtrosDia button').forEach(b => b.classList.remove('activo'));
+  dibujarDia(filtrarObj(_porDia, desde, hasta));
+}
+
+// ===== DIBUJAR GRÁFICOS =====
+function dibujarDia(obj) {
+  const sorted = ordenarObj(obj);
+  if (chart1) chart1.destroy();
   chart1 = new Chart(document.getElementById("dia"), {
     type: "bar",
     data: {
-      labels: Object.keys(data.porDia || {}),
-      datasets: [{ label: "Ventas por día", data: Object.values(data.porDia || {}) }]
+      labels: Object.keys(sorted),
+      datasets: [{
+        label: "Ventas ($)",
+        data: Object.values(sorted),
+        backgroundColor: "rgba(41, 128, 185, 0.75)",
+        borderColor: "#2980b9",
+        borderWidth: 1,
+        borderRadius: 5
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { maxRotation: 45, minRotation: 30 } },
+        y: { beginAtZero: true }
+      }
     }
   });
+}
 
+function dibujarMes(obj) {
+  const sorted = ordenarObj(obj);
+  if (chart2) chart2.destroy();
   chart2 = new Chart(document.getElementById("mes"), {
     type: "line",
     data: {
-      labels: Object.keys(data.porMes || {}),
-      datasets: [{ label: "Ventas por mes", data: Object.values(data.porMes || {}) }]
+      labels: Object.keys(sorted),
+      datasets: [{
+        label: "Ventas ($)",
+        data: Object.values(sorted),
+        borderColor: "#2980b9",
+        backgroundColor: "rgba(41, 128, 185, 0.12)",
+        fill: true,
+        tension: 0.35,
+        pointRadius: 5,
+        pointBackgroundColor: "#2980b9"
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { maxRotation: 45, minRotation: 30 } },
+        y: { beginAtZero: true }
+      }
     }
   });
 }
 
-// ===== EXTRAER ID SEGURO =====
-// ===== EXTRAER ID SEGURO =====
+// ===== CARGAR =====
+async function cargar() {
+  const res  = await fetch(API + "/analisis");
+  const data = await res.json();
+  ventas = data.ventas || [];
+
+  document.getElementById("total").innerText    = "$" + (data.totalGeneral || 0).toFixed(2);
+  document.getElementById("efectivo").innerText = data.efectivo || 0;
+  document.getElementById("credito").innerText  = data.credito  || 0;
+  document.getElementById("clientes").innerText = data.clientes || 0;
+
+  document.getElementById("top").innerText  = data.masVendidos?.[0]?.nombre   || "-";
+  document.getElementById("low").innerText  = data.menosVendidos?.[0]?.nombre || "-";
+  document.getElementById("gTop").innerText = data.masGanancia?.[0]?.nombre   || "-";
+  document.getElementById("gLow").innerText = data.menosGanancia?.[0]?.nombre || "-";
+
+  _porDia = data.porDia || {};
+  _porMes = data.porMes || {};
+
+  dibujarDia(_porDia);
+  dibujarMes(_porMes);
+  mostrar(ventas);
+}
+
+// ===== EXTRAER ID =====
 function extraerId(id) {
   if (!id) return "";
-
-  // ObjectId de mongoose
-  if (typeof id === "object" && id.toString) {
-    return id.toString();
-  }
-
-  // Mongo tipo {$oid:""}
-  if (typeof id === "object" && id.$oid) {
-    return id.$oid;
-  }
-
+  if (typeof id === "object" && id.$oid)    return id.$oid;
+  if (typeof id === "object" && id.toString) return id.toString();
   return String(id);
 }
 
-// ===== BORRAR PRODUCTO DE UNA VENTA =====
-function pedirBorrarProducto(ventaId, nombreProducto, indiceProd) {
-  abrirModal(
-    `¿Borrar "${nombreProducto}" de esta venta?`,
-    () => borrarProducto(ventaId, indiceProd)
-  );
+// ===== BORRAR PRODUCTO =====
+function pedirBorrarProducto(ventaId, nombre, idx) {
+  abrirModal(`¿Borrar "${nombre}" de esta venta?`, () => borrarProducto(ventaId, idx));
 }
-
-async function borrarProducto(ventaId, indiceProd) {
+async function borrarProducto(ventaId, idx) {
   try {
-    const id  = extraerId(ventaId);
-    const url = API + "/ventas/producto/" + id + "/" + indiceProd;
-
-    console.log("🗑 Intentando borrar:", url);
-
-    const res  = await fetch(url, { method: "DELETE" });
+    const res  = await fetch(`${API}/ventas/producto/${extraerId(ventaId)}/${idx}`, { method: "DELETE" });
     const data = await res.json();
-
-    console.log("✅ Respuesta servidor:", data);
-
-    if (data.error) {
-      alert("❌ Error: " + data.error);
-    } else {
-      alert(data.msg || "Producto eliminado");
-      cargar();
-    }
-  } catch (err) {
-    console.error("❌ Error fetch:", err);
-    alert("Error de conexión: " + err.message);
-  }
+    alert(data.error ? "❌ " + data.error : data.msg || "Eliminado");
+    cargar();
+  } catch (err) { alert("Error: " + err.message); }
 }
 
-// ===== BORRAR DÍA COMPLETO =====
+// ===== BORRAR DÍA =====
 function pedirBorrarDia(fecha) {
-  abrirModal(
-    `¿Borrar TODAS las ventas del día ${fecha}?`,
-    () => borrarDia(fecha)
-  );
+  abrirModal(`¿Borrar TODAS las ventas del día ${fecha}?`, () => borrarDia(fecha));
 }
-
 async function borrarDia(fecha) {
   try {
-    let partes   = fecha.split("/");
-    let dia      = partes[0].padStart(2, "0");
-    let mes      = partes[1].padStart(2, "0");
-    let anio     = partes[2];
-    let fechaISO = `${anio}-${mes}-${dia}`;
-
-    const res  = await fetch(API + "/ventas/dia", {
+    const [d, m, y] = fecha.split("/");
+    const res  = await fetch(`${API}/ventas/dia`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fecha: fechaISO })
+      body: JSON.stringify({ fecha: `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}` })
     });
     const data = await res.json();
     alert(data.msg || "Día eliminado");
     cargar();
-  } catch (err) {
-    console.error(err);
-    alert("Error al borrar");
-  }
+  } catch (err) { alert("Error al borrar"); }
 }
 
 // ===== HISTORIAL =====
 function mostrar(lista) {
-  let ul = document.getElementById("historial");
+  const ul = document.getElementById("historial");
   ul.innerHTML = "";
+  if (!lista || lista.length === 0) { ul.innerHTML = "<li>No hay ventas</li>"; return; }
 
-  if (!lista || lista.length === 0) {
-    ul.innerHTML = "<li>No hay ventas</li>";
-    return;
-  }
-
-  let agrupado = {};
+  const agrupado = {};
   lista.forEach(v => {
-    let fecha = new Date(v.fecha).toLocaleDateString("es-EC");
-    if (!agrupado[fecha]) agrupado[fecha] = [];
-    agrupado[fecha].push(v);
+    const f = new Date(v.fecha).toLocaleDateString("es-EC");
+    if (!agrupado[f]) agrupado[f] = [];
+    agrupado[f].push(v);
   });
 
-  Object.keys(agrupado).forEach(fecha => {
-    ul.innerHTML += `
-      <div style="margin-bottom:20px;">
-        <div style="
-          display:flex;
-          justify-content:space-between;
-          align-items:center;
-          background:#eee;
-          padding:10px;
-          border-radius:8px;
-        ">
-          <b>📅 ${fecha}</b>
-          <button onclick="pedirBorrarDia('${fecha}')" style="
-            background:#e74c3c;color:white;border:none;
-            padding:6px 10px;border-radius:6px;cursor:pointer;margin-top:0;
-          ">🗑 Borrar día</button>
-        </div>
-        <button onclick="verDia('${fecha}')" style="
-          margin:8px 0;background:#3498db;color:white;border:none;
-          padding:6px 10px;border-radius:6px;cursor:pointer;margin-top:4px;
-        ">👁 Ver solo este día</button>
-    `;
-
-    agrupado[fecha].forEach(v => {
-      // ✅ Extraer el id correctamente aquí también
-      const ventaId = extraerId(v._id);
-
-      let productos = "";
-      if (Array.isArray(v.productos)) {
-        productos = '<ul style="margin:6px 0 0 0;padding:0;list-style:none;">';
-        v.productos.forEach((p, i) => {
-          const nombreEsc = (p.nombre || "").replace(/'/g, "\\'").replace(/"/g, "&quot;");
-          productos += `
-            <li style="
-              display:flex;
-              justify-content:space-between;
-              align-items:center;
-              padding:5px 8px;
-              margin-bottom:4px;
-              background:#f9f9f9;
-              border-radius:6px;
-              border-left:3px solid #ff3f34;
-            ">
-              <span>📦 ${p.nombre} x${p.cantidad}</span>
-              <button
-                onclick="pedirBorrarProducto('${ventaId}', '${nombreEsc}', ${i})"
-                style="
-                  background:#e74c3c;
-                  color:white;
-                  border:none;
-                  padding:4px 9px;
-                  border-radius:5px;
-                  font-size:13px;
-                  cursor:pointer;
-                  margin-top:0;
-                "
-              >🗑</button>
-            </li>
-          `;
-        });
-        productos += "</ul>";
-      }
-
+  Object.keys(agrupado)
+    .sort((a, b) => parseFecha(b) - parseFecha(a))
+    .forEach(fecha => {
       ul.innerHTML += `
-        <div style="
-          background:white;padding:10px;margin-bottom:10px;
-          border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,0.1)
-        ">
-          👤 <b>${v.cliente || "-"}</b><br>
-          📱 ${v.celular || "-"}<br>
-          🆔 ${v.cedula || "-"}<br>
-          📧 ${v.correo || "-"}<br>
-          💰 $${v.total || 0}<br>
-          🕒 ${new Date(v.fecha).toLocaleTimeString()}<br>
-          ${productos}
-        </div>
+        <div style="margin-bottom:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;background:#eee;padding:10px;border-radius:8px;">
+            <b>📅 ${fecha}</b>
+            <button onclick="pedirBorrarDia('${fecha}')" style="background:#e74c3c;color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;margin-top:0;">🗑 Borrar día</button>
+          </div>
+          <button onclick="verDia('${fecha}')" style="margin:8px 0 4px;background:#3498db;color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;">👁 Ver solo este día</button>
       `;
+      agrupado[fecha].forEach(v => {
+        const vid = extraerId(v._id);
+        let prods = "";
+        if (Array.isArray(v.productos)) {
+          prods = '<ul style="margin:6px 0 0;padding:0;list-style:none;">';
+          v.productos.forEach((p, i) => {
+            const ne = (p.nombre || "").replace(/'/g,"\\'").replace(/"/g,"&quot;");
+            prods += `
+              <li style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;margin-bottom:4px;background:#f9f9f9;border-radius:6px;border-left:3px solid #2980b9;">
+                <span>📦 ${p.nombre} x${p.cantidad}</span>
+                <button onclick="pedirBorrarProducto('${vid}','${ne}',${i})"
+                  style="background:#e74c3c;color:white;border:none;padding:4px 9px;border-radius:5px;font-size:13px;cursor:pointer;margin-top:0;">🗑</button>
+              </li>`;
+          });
+          prods += "</ul>";
+        }
+        ul.innerHTML += `
+          <div style="background:white;padding:10px;margin-bottom:10px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,0.1);">
+            👤 <b>${v.cliente || "-"}</b><br>
+            📱 ${v.celular || "-"}<br>
+            🆔 ${v.cedula  || "-"}<br>
+            📧 ${v.correo  || "-"}<br>
+            💰 $${v.total  || 0}<br>
+            🕒 ${new Date(v.fecha).toLocaleTimeString()}<br>
+            ${prods}
+          </div>`;
+      });
+      ul.innerHTML += `</div>`;
     });
-
-    ul.innerHTML += `</div>`;
-  });
 }
 
 function verDia(fecha) {
-  let filtrado = ventas.filter(v =>
-    new Date(v.fecha).toLocaleDateString("es-EC") === fecha
-  );
-  mostrar(filtrado);
+  mostrar(ventas.filter(v => new Date(v.fecha).toLocaleDateString("es-EC") === fecha));
 }
 
-// ===== BUSCAR =====
 function buscar() {
-  let val = document.getElementById("buscar").value.toLowerCase();
-  let filtrado = ventas.filter(v =>
+  const val = document.getElementById("buscar").value.toLowerCase();
+  mostrar(ventas.filter(v =>
     (v.cliente || "").toLowerCase().includes(val) ||
     (v.cedula  || "").includes(val) ||
     (v.celular || "").includes(val)
-  );
-  mostrar(filtrado);
+  ));
 }
 
 cargar();
 </script>
-
 </body>
 </html>
