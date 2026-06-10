@@ -17,6 +17,52 @@
     button:hover { background:#e84118; }
     table { width:100%; border-collapse:collapse; }
     th, td { padding:10px; border-bottom:1px solid #ddd; text-align:center; }
+
+    /* ===== MODAL ===== */
+    #overlay {
+      display:none;
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.5);
+      z-index:100;
+      align-items:center;
+      justify-content:center;
+    }
+    #overlay.open { display:flex; }
+    .modal-box {
+      background:white;
+      border-radius:14px;
+      padding:28px;
+      width:360px;
+      box-shadow:0 10px 40px rgba(0,0,0,0.25);
+    }
+    .modal-box h3 {
+      margin:0 0 18px;
+      font-size:17px;
+      color:#1e272e;
+    }
+    .modal-box label {
+      display:block;
+      font-size:12px;
+      color:#888;
+      margin:12px 0 4px;
+    }
+    .modal-box input {
+      width:100%;
+      box-sizing:border-box;
+      margin:0;
+    }
+    .modal-actions {
+      display:flex;
+      gap:10px;
+      justify-content:flex-end;
+      margin-top:22px;
+    }
+    .btn-cancel {
+      background:#eee;
+      color:#333;
+    }
+    .btn-cancel:hover { background:#ddd; }
   </style>
 </head>
 
@@ -40,18 +86,15 @@
 
     <div class="card">
       <h3>Nuevo Cliente</h3>
-
       <input id="nombre" placeholder="Nombre">
       <input id="cedula" placeholder="Cédula">
       <input id="telefono" placeholder="Teléfono">
       <input id="correo" placeholder="Correo">
-
       <button onclick="guardar()">Guardar</button>
     </div>
 
     <div class="card">
       <h3>Lista</h3>
-
       <table>
         <thead>
           <tr>
@@ -62,11 +105,35 @@
             <th>Acción</th>
           </tr>
         </thead>
-
         <tbody id="tabla"></tbody>
       </table>
     </div>
 
+  </div>
+</div>
+
+<!-- ===== MODAL EDITAR ===== -->
+<div id="overlay">
+  <div class="modal-box">
+    <h3>✏️ Editar cliente</h3>
+    <input type="hidden" id="editId">
+
+    <label>Nombre</label>
+    <input type="text" id="editNombre" placeholder="Nombre">
+
+    <label>Cédula</label>
+    <input type="text" id="editCedula" placeholder="Cédula">
+
+    <label>Teléfono</label>
+    <input type="text" id="editTelefono" placeholder="Teléfono">
+
+    <label>Correo</label>
+    <input type="text" id="editCorreo" placeholder="Correo">
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="cerrarModal()">Cancelar</button>
+      <button onclick="guardarEdicion()">Guardar</button>
+    </div>
   </div>
 </div>
 
@@ -76,7 +143,7 @@ const API = window.location.origin.includes("localhost")
   ? "http://localhost:3000"
   : "https://agronaranjito-1.onrender.com";
 
-//======Cargar======
+// ================= CARGAR =================
 async function cargar(){
   try{
     const res = await fetch(API + '/clientes');
@@ -97,7 +164,7 @@ async function cargar(){
           <td>${c.telefono || "-"}</td>
           <td>${c.correo || "-"}</td>
           <td>
-            <button onclick="editar('${c._id}','${c.nombre}','${c.cedula}','${c.telefono || ""}','${c.correo || ""}')">✏️</button>
+            <button onclick="abrirModal('${c._id}','${c.nombre}','${c.cedula}','${c.telefono || ""}','${c.correo || ""}')">✏️</button>
             <button onclick="eliminar('${c._id}')">🗑</button>
           </td>
         </tr>
@@ -109,11 +176,11 @@ async function cargar(){
     alert("❌ No conecta con el servidor");
   }
 }
-// ================= GUARDAR =================
-async function guardar(){
 
+// ================= GUARDAR NUEVO =================
+async function guardar(){
   if(!nombre.value || !cedula.value){
-    return alert("Completa datos");
+    return alert("Completa los datos");
   }
 
   await fetch(API + '/clientes', {
@@ -134,40 +201,42 @@ async function guardar(){
 
   cargar();
 }
-  
 
-// ================= EDITAR =================
-async function editar(id,nombreActual,cedulaActual,telefonoActual,correoActual){
+// ================= MODAL EDITAR =================
+function abrirModal(id, nombreActual, cedulaActual, telefonoActual, correoActual){
+  document.getElementById('editId').value      = id;
+  document.getElementById('editNombre').value  = nombreActual;
+  document.getElementById('editCedula').value  = cedulaActual;
+  document.getElementById('editTelefono').value= telefonoActual;
+  document.getElementById('editCorreo').value  = correoActual;
+  document.getElementById('overlay').classList.add('open');
+}
 
-  let n = prompt("Nombre:",nombreActual);
-  if(n===null) return;
+function cerrarModal(){
+  document.getElementById('overlay').classList.remove('open');
+}
 
-  let c = prompt("Cédula:",cedulaActual);
-  if(c===null) return;
+async function guardarEdicion(){
+  const id       = document.getElementById('editId').value;
+  const nombre   = document.getElementById('editNombre').value;
+  const cedula   = document.getElementById('editCedula').value;
+  const telefono = document.getElementById('editTelefono').value;
+  const correo   = document.getElementById('editCorreo').value;
 
-  let t = prompt("Teléfono:",telefonoActual);
-  if(t===null) return;
-
-  let e = prompt("Correo:",correoActual);
-  if(e===null) return;
+  if(!nombre || !cedula) return alert("Completa los datos");
 
   await fetch(API + '/clientes/editar', {
     method:'PUT',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({
-      id,
-      nombre:n,
-      cedula:c,
-      telefono:t,
-      correo:e
-    })
+    body: JSON.stringify({ id, nombre, cedula, telefono, correo })
   });
 
+  cerrarModal();
   cargar();
 }
+
 // ================= ELIMINAR =================
 async function eliminar(id){
-
   let pass = prompt("Contraseña");
   if(pass !== "agro123") return;
 
