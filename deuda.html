@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-  <title>Deudas </title>
-  <style>
+  <meta charset="UTF-8">
+  <title>Deudas - Agro Naranjito</title>
+   <style>
     body { margin: 0; font-family: 'Segoe UI'; display: flex; background: #f5f6fa; }
     .sidebar { width: 220px; background: #1e272e; color: white; height: 100vh; padding: 20px; }
     .sidebar a { display: block; padding: 10px; color: white; text-decoration: none; border-radius: 8px; margin-top: 10px; }
@@ -91,7 +92,7 @@
   </div>
 </div>
 
-<!-- ====== MODAL ABONAR ====== -->
+<!-- MODAL ABONAR -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <h3>💰 Registrar Abono</h3>
@@ -101,8 +102,8 @@
 
     <label>Método de pago</label>
     <div class="tipo-pago">
-      <button class="tipo-btn activo" id="btn-efectivo" onclick="seleccionarTipo('efectivo')">💵 Efectivo</button>
-      <button class="tipo-btn" id="btn-transferencia" onclick="seleccionarTipo('transferencia')">🏦 Transferencia</button>
+      <button type="button" class="tipo-btn activo" id="btn-efectivo" onclick="seleccionarTipo('efectivo')">💵 Efectivo</button>
+      <button type="button" class="tipo-btn" id="btn-transferencia" onclick="seleccionarTipo('transferencia')">🏦 Transferencia</button>
     </div>
 
     <div id="seccion-transferencia">
@@ -120,24 +121,62 @@
     </div>
 
     <div class="modal-btns">
-      <button class="btn-cancelar" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn-cancelar" onclick="cerrarModal('modalOverlay')">Cancelar</button>
       <button class="btn-confirmar" onclick="confirmarAbono()">✅ Confirmar</button>
     </div>
   </div>
 </div>
 
-<script>
+<!-- MODAL EDITAR -->
+<div class="modal-overlay" id="modalEditar">
+  <div class="modal" style="width:400px;">
+    <h3>✏️ Editar Deuda</h3>
+    <input type="hidden" id="edit-id">
+    <label>Nombre del cliente</label>
+    <input type="text" id="edit-cliente" placeholder="Nombre completo">
+    <label>Cédula</label>
+    <input type="text" id="edit-cedula" placeholder="Cédula">
+    <label>Celular</label>
+    <input type="text" id="edit-celular" placeholder="Celular">
+    <label>Monto total</label>
+    <input type="number" id="edit-total" placeholder="0.00">
+    <div class="modal-btns">
+      <button class="btn-cancelar" onclick="cerrarModal('modalEditar')">Cancelar</button>
+      <button class="btn-confirmar" onclick="confirmarEditar()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
 
+<!-- MODAL ACUMULAR -->
+<div class="modal-overlay" id="modalAcumular">
+  <div class="modal" style="width:420px;">
+    <h3>⚠️ Cliente con deuda pendiente</h3>
+    <div id="acumular-info" style="background:#fff3cd; border-left:4px solid #ffc107; padding:12px 14px; border-radius:8px; font-size:14px; margin-bottom:14px; color:#333;"></div>
+    <div class="modal-btns">
+      <button class="btn-cancelar" onclick="responderAcumular(false)">➕ Crear deuda nueva</button>
+      <button class="btn-confirmar" onclick="responderAcumular(true)">📦 Agregar a deuda existente</button>
+    </div>
+  </div>
+</div>
+
+<script>
 const API = "https://agronaranjito-1.onrender.com";
 
 let deudas = [];
 let deudaIdActual = null;
 let tipoPagoActual = "efectivo";
 
+let _acumularResolve = null;
+
 const BANCOS = {
   "Banco Guayaquil": { tipo: "Cuenta de Ahorros", numero: "xxxxxxxxxx" },
   "Banco Pichincha": { tipo: "Cuenta de Ahorros", numero: "2208028078" }
 };
+
+// ================= CERRAR MODAL =================
+function cerrarModal(id) {
+  document.getElementById(id).classList.remove("activo");
+}
 
 // ================= CARGAR =================
 async function cargar() {
@@ -151,31 +190,54 @@ function buscarCliente() {
   let texto = document.getElementById("buscar").value.toLowerCase().trim();
   if (!texto) { mostrar(deudas); return; }
   let filtradas = deudas.filter(d => {
-    let nombre = String(d.cliente || "").toLowerCase().trim();
-    let cedula = String(d.cedula || "").toLowerCase().trim();
+    let nombre  = String(d.cliente || "").toLowerCase().trim();
+    let cedula  = String(d.cedula  || "").toLowerCase().trim();
     let celular = String(d.celular || "").toLowerCase().trim();
     return nombre.includes(texto) || cedula.includes(texto) || celular.includes(texto);
   });
   mostrar(filtradas);
 }
 
+// ================= MODAL ACUMULAR =================
+function mostrarModalAcumular(deudaExistente, nuevoProducto, totalV) {
+  return new Promise(resolve => {
+    _acumularResolve = resolve;
+    let deudaPendiente = (deudaExistente.total - (deudaExistente.pagado || 0)).toFixed(2);
+    let productosExistentes = (deudaExistente.productos || [])
+      .map(p => `• ${p.nombre} x${p.cantidad} = $${(p.precio * p.cantidad).toFixed(2)}`)
+      .join("<br>");
+    document.getElementById("acumular-info").innerHTML = `
+      <b>${deudaExistente.cliente}</b> ya tiene deuda pendiente de <b>$${deudaPendiente}</b><br><br>
+      <b>Productos actuales:</b><br>${productosExistentes}<br><br>
+      <b>Nuevo producto:</b> ${nuevoProducto.nombre} ($${totalV.toFixed(2)})
+    `;
+    document.getElementById("modalAcumular").classList.add("activo");
+  });
+}
+
+function responderAcumular(valor) {
+  cerrarModal("modalAcumular");
+  if (_acumularResolve) {
+    _acumularResolve(valor);
+    _acumularResolve = null;
+  }
+}
+
 // ================= AGREGAR =================
-// Si el cliente ya tiene una deuda activa (por cédula o nombre), permite elegir si agregar a la existente o crear nueva.
 async function agregar() {
-  let nombreV = document.getElementById("nombre").value.trim();
-  let apellidoV = document.getElementById("apellido").value.trim();
-  let cedulaV = document.getElementById("cedula").value.trim();
-  let celularV = document.getElementById("celular").value.trim();
-  let totalV = parseFloat(document.getElementById("monto").value);
+  let nombreV       = document.getElementById("nombre").value.trim();
+  let apellidoV     = document.getElementById("apellido").value.trim();
+  let cedulaV       = document.getElementById("cedula").value.trim();
+  let celularV      = document.getElementById("celular").value.trim();
+  let totalV        = parseFloat(document.getElementById("monto").value);
   let productosTexto = document.getElementById("direccion").value.trim();
 
   if (!totalV || isNaN(totalV)) return alert("Monto inválido");
   if (!productosTexto) return alert("Ingresa el nombre del producto");
 
-  let clienteFinal = (nombreV + " " + apellidoV).trim();
+  let clienteFinal  = (nombreV + " " + apellidoV).trim();
   let nuevoProducto = { nombre: productosTexto, cantidad: 1, precio: totalV };
 
-  // Buscar deuda existente por cédula (prioridad) o nombre
   let deudaExistente = null;
   if (cedulaV && cedulaV !== "-") {
     deudaExistente = deudas.find(d =>
@@ -192,124 +254,109 @@ async function agregar() {
   }
 
   if (deudaExistente) {
-    // CLIENTE YA TIENE DEUDA PENDIENTE: preguntar qué hacer
-    let deudaPendiente = (deudaExistente.total - (deudaExistente.pagado || 0)).toFixed(2);
-    let productosExistentes = (deudaExistente.productos || [])
-      .map(p => `• ${p.nombre} x${p.cantidad} = $${(p.precio * p.cantidad).toFixed(2)}`)
-      .join("\n");
+    const acumular = await mostrarModalAcumular(deudaExistente, nuevoProducto, totalV);
 
-    let respuesta = confirm(
-      `⚠️ ${deudaExistente.cliente} YA TIENE DEUDA PENDIENTE\n\n` +
-      `Deuda pendiente: $${deudaPendiente}\n\n` +
-      `Productos actuales:\n${productosExistentes}\n\n` +
-      `Nuevo producto: ${productosTexto} ($${totalV.toFixed(2)})\n\n` +
-      `¿Deseas AGREGAR este producto a su deuda existente?\n\n` +
-      `✅ ACEPTAR = Agregar a deuda pendiente\n❌ CANCELAR = Crear deuda nueva separada`
-    );
-
-    if (respuesta) {
-      // ACUMULAR: sumar producto y monto a la deuda existente
+    if (acumular) {
       let productosActualizados = [...(deudaExistente.productos || []), nuevoProducto];
       let nuevoTotal = deudaExistente.total + totalV;
-
       const res = await fetch(API + '/deudas/' + deudaExistente._id, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cliente: deudaExistente.cliente,
-          cedula: deudaExistente.cedula,
-          celular: deudaExistente.celular,
-          total: nuevoTotal,
+          cliente:   deudaExistente.cliente,
+          cedula:    deudaExistente.cedula,
+          celular:   deudaExistente.celular,
+          total:     nuevoTotal,
           productos: productosActualizados
         })
       });
-
       const texto = await res.text();
       let data;
       try { data = JSON.parse(texto); } catch { alert("Error del servidor al acumular deuda"); return; }
       if (!res.ok) { alert(data.error || "Error al actualizar deuda"); return; }
-      alert(`✅ Producto agregado a deuda existente.\n\nDeuda actualizada: $${nuevoTotal.toFixed(2)}\n\nProductos: ${productosActualizados.length}`);
-
+      alert(`✅ Producto agregado. Deuda actualizada: $${nuevoTotal.toFixed(2)}`);
     } else {
-      // CREAR DEUDA NUEVA (aparte)
-      console.log("Creando deuda nueva separada...");
       await fetch(API + '/deudas', {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cliente: clienteFinal,
-          cedula: cedulaV || "-",
-          celular: celularV || "",
+          cliente:   clienteFinal,
+          cedula:    cedulaV || "-",
+          celular:   celularV || "",
           direccion: "",
-          total: totalV,
+          total:     totalV,
           productos: [nuevoProducto],
-          pagos: [],
-          pagado: 0
+          pagos:     [],
+          pagado:    0
         })
       });
-      alert(`✅ Deuda nueva creada para ${clienteFinal}\n\nMonto: $${totalV.toFixed(2)}\nProducto: ${productosTexto}`);
+      alert(`✅ Deuda nueva creada para ${clienteFinal}`);
     }
-
   } else {
-    // NUEVA DEUDA (no existe deuda anterior)
     await fetch(API + '/deudas', {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        cliente: clienteFinal,
-        cedula: cedulaV || "-",
-        celular: celularV || "",
+        cliente:   clienteFinal,
+        cedula:    cedulaV || "-",
+        celular:   celularV || "",
         direccion: "",
-        total: totalV,
+        total:     totalV,
         productos: [nuevoProducto],
-        pagos: [],
-        pagado: 0
+        pagos:     [],
+        pagado:    0
       })
     });
-    alert(`✅ Deuda registrada para ${clienteFinal}\n\nMonto: $${totalV.toFixed(2)}\nProducto: ${productosTexto}`);
+    alert(`✅ Deuda registrada para ${clienteFinal}`);
   }
 
   limpiar();
   cargar();
 }
 
-// ================= EDITAR =================
-async function editar(id) {
+// ================= MODAL EDITAR =================
+function editar(id) {
+  let d = deudas.find(x => x._id === id);
+  if (!d) return;
+  document.getElementById("edit-id").value      = id;
+  document.getElementById("edit-cliente").value = d.cliente || "";
+  document.getElementById("edit-cedula").value  = d.cedula  || "";
+  document.getElementById("edit-celular").value = d.celular || "";
+  document.getElementById("edit-total").value   = d.total   || "";
+  document.getElementById("modalEditar").classList.add("activo");
+}
+
+async function confirmarEditar() {
+  const id      = document.getElementById("edit-id").value;
+  const cliente = document.getElementById("edit-cliente").value.trim();
+  const cedula  = document.getElementById("edit-cedula").value.trim();
+  const celular = document.getElementById("edit-celular").value.trim();
+  const total   = Number(document.getElementById("edit-total").value);
+  if (!cliente) return alert("Ingresa el nombre del cliente");
+  if (isNaN(total)) return alert("Monto inválido");
   try {
-    let d = deudas.find(x => x._id === id);
-    if (!d) { alert("No encontrada"); return; }
-    let clienteNuevo = prompt("Nombre:", d.cliente);
-    if (clienteNuevo === null) return;
-    let cedulaNueva = prompt("Cédula:", d.cedula || "");
-    if (cedulaNueva === null) return;
-    let celularNuevo = prompt("Celular:", d.celular || "");
-    if (celularNuevo === null) return;
-    let totalNuevo = prompt("Monto:", d.total);
-    if (totalNuevo === null) return;
-    totalNuevo = Number(totalNuevo);
-    if (isNaN(totalNuevo)) { alert("Monto inválido"); return; }
     const res = await fetch(API + '/deudas/' + id, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cliente: clienteNuevo, cedula: cedulaNueva, celular: celularNuevo, total: totalNuevo })
+      body: JSON.stringify({ cliente, cedula, celular, total })
     });
     const texto = await res.text();
     let data;
-    try { data = JSON.parse(texto); } catch { alert("El servidor devolvió HTML y no JSON"); return; }
+    try { data = JSON.parse(texto); } catch { alert("Error del servidor"); return; }
     if (!res.ok) { alert(data.error || "Error al editar"); return; }
-    alert(data.mensaje || "Editado correctamente");
-    await cargar();
-  } catch (err) { console.log(err); alert("Error: " + err.message); }
+    cerrarModal("modalEditar");
+    cargar();
+  } catch (err) { alert("Error: " + err.message); }
 }
 
 // ================= MOSTRAR =================
 function mostrar(lista) {
   let tabla = document.getElementById("tabla");
-  let html = "";
+  let html  = "";
   lista.forEach(d => {
-    let pagado = d.pagado || 0;
-    let restante = d.total - pagado;
-    let estado = restante <= 0 ? "Pagado ✅" : "Pendiente";
+    let pagado    = d.pagado || 0;
+    let restante  = d.total - pagado;
+    let estado    = restante <= 0 ? "Pagado ✅" : "Pendiente";
     let cantProds = (d.productos && d.productos.length) ? d.productos.length : 0;
     let productos = cantProds
       ? d.productos.map(p => `${p.nombre} x${p.cantidad} = $${(p.precio * p.cantidad).toFixed(2)}`).join("<br>")
@@ -322,8 +369,8 @@ function mostrar(lista) {
           return `$${p.monto} — ${new Date(p.fecha).toLocaleString()} — ${metodo}`;
         }).join("<br>")
       : "Sin pagos";
-    let mensaje = encodeURIComponent(`Hola ${d.cliente}, le saluda Agro Naranjito.\n\nLe recordamos que mantiene una deuda pendiente de $${restante.toFixed(2)}.\n\nGracias por su atención.`);
-    let numero = (d.celular || "").replace(/^0/, "593");
+    let mensaje   = encodeURIComponent(`Hola ${d.cliente}, le saluda Agro Naranjito.\n\nLe recordamos que mantiene una deuda pendiente de $${restante.toFixed(2)}.\n\nGracias por su atención.`);
+    let numero    = (d.celular || "").replace(/^0/, "593");
     let badgeProds = cantProds > 1 ? `<br><span class="badge-acum">📦 ${cantProds} productos</span>` : "";
     html += `
       <tr>
@@ -364,22 +411,21 @@ function toggleDetalle(id) {
 
 // ================= MODAL ABONAR =================
 function abrirModal(id) {
-  deudaIdActual = id;
+  deudaIdActual  = id;
   tipoPagoActual = "efectivo";
-  document.getElementById("modal-monto").value = "";
-  document.getElementById("modal-banco").value = "";
+  document.getElementById("modal-monto").value      = "";
+  document.getElementById("modal-banco").value      = "";
   document.getElementById("modal-comprobante").value = "";
-  document.getElementById("modal-remitente").value = "";
+  document.getElementById("modal-remitente").value  = "";
   document.getElementById("seccion-transferencia").style.display = "none";
-  document.getElementById("info-banco").style.display = "none";
+  document.getElementById("info-banco").style.display            = "none";
   document.getElementById("btn-efectivo").classList.add("activo");
   document.getElementById("btn-transferencia").classList.remove("activo");
-  document.getElementById("modalOverlay").classList.add("activo");
-}
 
-function cerrarModal() {
-  document.getElementById("modalOverlay").classList.remove("activo");
-  deudaIdActual = null;
+  const btnConfirmar = document.querySelector(".btn-confirmar");
+  if (btnConfirmar) btnConfirmar.disabled = false;
+
+  document.getElementById("modalOverlay").classList.add("activo");
 }
 
 function seleccionarTipo(tipo) {
@@ -391,11 +437,11 @@ function seleccionarTipo(tipo) {
 }
 
 function actualizarInfoBanco() {
-  let banco = document.getElementById("modal-banco").value;
+  let banco   = document.getElementById("modal-banco").value;
   let infoDiv = document.getElementById("info-banco");
   if (banco && BANCOS[banco]) {
     let b = BANCOS[banco];
-    infoDiv.innerHTML = `<b>${banco}</b><br>${b.tipo}<br><b>${b.numero}</b>`;
+    infoDiv.innerHTML    = `<b>${banco}</b><br>${b.tipo}<br><b>${b.numero}</b>`;
     infoDiv.style.display = "block";
   } else {
     infoDiv.style.display = "none";
@@ -403,81 +449,60 @@ function actualizarInfoBanco() {
 }
 
 // ================= CONFIRMAR ABONO =================
+// ✅ CORRECCIÓN: se eliminó la llamada a registrarTransferenciaEnCaja()
+// El backend (/deudas/pagar) ya registra el movimiento en caja internamente,
+// por lo que llamar también a /caja/transferencia generaba un duplicado.
 async function confirmarAbono() {
   let monto = Number(document.getElementById("modal-monto").value);
   if (!monto || monto <= 0) return alert("Monto inválido");
 
-  let banco = "";
+  let banco       = "";
   let comprobante = "";
-  let remitente = "";
+  let remitente   = "";
 
   if (tipoPagoActual === "transferencia") {
-    banco = document.getElementById("modal-banco").value;
+    banco       = document.getElementById("modal-banco").value;
     comprobante = document.getElementById("modal-comprobante").value.trim();
-    remitente = document.getElementById("modal-remitente").value.trim();
-    if (!banco) return alert("Selecciona un banco");
+    remitente   = document.getElementById("modal-remitente").value.trim();
+    if (!banco)       return alert("Selecciona un banco");
     if (!comprobante) return alert("Ingresa el número de comprobante");
   }
 
-  // Guardamos el cliente antes del fetch (lo necesitamos después)
-  let deudaActual = deudas.find(x => x._id === deudaIdActual);
+  const btnConfirmar = document.querySelector(".btn-confirmar");
+  if (btnConfirmar) btnConfirmar.disabled = true;
 
   try {
     const res = await fetch(API + '/deudas/pagar', {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: deudaIdActual, monto })
+      body: JSON.stringify({
+        id:         deudaIdActual,
+        monto,
+        tipoPago:   tipoPagoActual,   // ✅ el backend ahora lee tipoPago correctamente
+        banco,
+        comprobante,
+        remitente
+      })
     });
 
     const data = await res.json();
-    if (data.error) return alert(data.error);
-
-    // ✅ FIX: Registrar transferencia en caja con la variable correcta
-    if (tipoPagoActual === "transferencia") {
-      await registrarTransferenciaEnCaja({
-        monto,
-        banco,
-        comprobante,
-        remitente,
-        descripcion: `Abono deuda — ${deudaActual ? deudaActual.cliente : "Cliente"}`
-      });
+    if (data.error) {
+      if (btnConfirmar) btnConfirmar.disabled = false;
+      return alert(data.error);
     }
 
-    cerrarModal();
+    // ✅ NO se llama a /caja/transferencia aquí.
+    // El endpoint /deudas/pagar en el backend ya lo hace internamente.
+
+    cerrarModal("modalOverlay");
     abrirRecibo(data, monto, tipoPagoActual, banco, comprobante, remitente);
     cargar();
 
   } catch (err) {
     console.log(err);
     alert("Error al abonar la deuda");
-  }
-}
-
-// ================= REGISTRAR TRANSFERENCIA EN CAJA =================
-// ✅ FIX: variable correcta, campo "motivo" corregido, manejo de errores mejorado
-async function registrarTransferenciaEnCaja({ monto, banco, comprobante, remitente, descripcion }) {
-  try {
-    const res = await fetch(API + '/caja/transferencia', {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        monto,
-        banco,
-        cuenta: BANCOS[banco] ? BANCOS[banco].numero : "",
-        comprobante,
-        remitente,
-        motivo: descripcion
-      })
-    });
-    const texto = await res.text();
-    try {
-      const data = JSON.parse(texto);
-      if (!res.ok) console.warn("Caja respuesta:", data);
-    } catch {
-      console.warn("Caja devolvió respuesta no-JSON:", texto.substring(0, 200));
-    }
-  } catch (err) {
-    console.log("Error al registrar en caja:", err);
+  } finally {
+    if (btnConfirmar) btnConfirmar.disabled = false;
   }
 }
 
@@ -498,8 +523,8 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
       }).join("")
     : "Sin pagos<br>";
 
-  let pagado = d.pagado || 0;
-  let total = d.total || 0;
+  let pagado   = d.pagado  || 0;
+  let total    = d.total   || 0;
   let restante = d.restante ?? (total - pagado);
 
   let infoTransferencia = tipoPago === "transferencia"
@@ -522,7 +547,7 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
     <h2>🧾 DETALLE DEUDA</h2>
     <div class="line"></div>
     Cliente: ${d.cliente || "-"}<br>
-    Cédula: ${d.cedula || "-"}<br>
+    Cédula: ${d.cedula   || "-"}<br>
     Celular: ${d.celular || "-"}<br>
     <div class="line"></div>
     📦 Productos<br>${productos}
@@ -544,12 +569,13 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
 
 // ================= LIMPIAR =================
 function limpiar() {
-  document.getElementById("nombre").value = "";
-  document.getElementById("apellido").value = "";
-  document.getElementById("cedula").value = "";
-  document.getElementById("celular").value = "";
+  document.getElementById("nombre").value    = "";
+  document.getElementById("apellido").value  = "";
+  document.getElementById("cedula").value    = "";
+  document.getElementById("celular").value   = "";
   document.getElementById("direccion").value = "";
-  document.getElementById("monto").value = "";
+  document.getElementById("monto").value     = "";
+  if (document.getElementById("meses")) document.getElementById("meses").value = "";
 }
 
 // ================= ELIMINAR =================
