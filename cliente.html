@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Clientes </title>
-
+  <title>Clientes</title>
   <style>
     body { margin:0; font-family:'Segoe UI'; display:flex; background:#f5f6fa; }
     .sidebar { width:220px; background:#1e272e; color:white; height:100vh; padding:20px; }
@@ -18,8 +17,8 @@
     table { width:100%; border-collapse:collapse; }
     th, td { padding:10px; border-bottom:1px solid #ddd; text-align:center; }
 
-    /* ===== MODAL ===== */
-    #overlay {
+    /* ===== MODALES ===== */
+    .overlay {
       display:none;
       position:fixed;
       inset:0;
@@ -28,7 +27,7 @@
       align-items:center;
       justify-content:center;
     }
-    #overlay.open { display:flex; }
+    .overlay.open { display:flex; }
     .modal-box {
       background:white;
       border-radius:14px;
@@ -36,33 +35,14 @@
       width:360px;
       box-shadow:0 10px 40px rgba(0,0,0,0.25);
     }
-    .modal-box h3 {
-      margin:0 0 18px;
-      font-size:17px;
-      color:#1e272e;
-    }
-    .modal-box label {
-      display:block;
-      font-size:12px;
-      color:#888;
-      margin:12px 0 4px;
-    }
-    .modal-box input {
-      width:100%;
-      box-sizing:border-box;
-      margin:0;
-    }
-    .modal-actions {
-      display:flex;
-      gap:10px;
-      justify-content:flex-end;
-      margin-top:22px;
-    }
-    .btn-cancel {
-      background:#eee;
-      color:#333;
-    }
+    .modal-box h3 { margin:0 0 18px; font-size:17px; color:#1e272e; }
+    .modal-box label { display:block; font-size:12px; color:#888; margin:12px 0 4px; }
+    .modal-box input { width:100%; box-sizing:border-box; margin:0; }
+    .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:22px; }
+    .btn-cancel { background:#eee; color:#333; }
     .btn-cancel:hover { background:#ddd; }
+    .btn-danger { background:#ff3f34; }
+    #passError { color:#ff3f34; font-size:12px; margin-top:6px; display:none; }
   </style>
 </head>
 
@@ -79,9 +59,7 @@
 </div>
 
 <div class="main">
-
   <div class="header">👤 Clientes</div>
-
   <div class="container">
 
     <div class="card">
@@ -113,26 +91,36 @@
 </div>
 
 <!-- ===== MODAL EDITAR ===== -->
-<div id="overlay">
+<div id="overlayEditar" class="overlay">
   <div class="modal-box">
     <h3>✏️ Editar cliente</h3>
     <input type="hidden" id="editId">
-
     <label>Nombre</label>
     <input type="text" id="editNombre" placeholder="Nombre">
-
     <label>Cédula</label>
     <input type="text" id="editCedula" placeholder="Cédula">
-
     <label>Teléfono</label>
     <input type="text" id="editTelefono" placeholder="Teléfono">
-
     <label>Correo</label>
     <input type="text" id="editCorreo" placeholder="Correo">
-
     <div class="modal-actions">
-      <button class="btn-cancel" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn-cancel" onclick="cerrarEditar()">Cancelar</button>
       <button onclick="guardarEdicion()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL ELIMINAR ===== -->
+<div id="overlayEliminar" class="overlay">
+  <div class="modal-box">
+    <h3>🗑 Eliminar cliente</h3>
+    <input type="hidden" id="deleteId">
+    <label>Contraseña</label>
+    <input type="password" id="deletePass" placeholder="Ingresa la contraseña">
+    <p id="passError">❌ Contraseña incorrecta</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="cerrarEliminar()">Cancelar</button>
+      <button class="btn-danger" onclick="confirmarEliminar()">Eliminar</button>
     </div>
   </div>
 </div>
@@ -148,14 +136,11 @@ async function cargar(){
   try{
     const res = await fetch(API + '/clientes');
     const data = await res.json();
-
     tabla.innerHTML = "";
-
     if(!data.length){
       tabla.innerHTML = "<tr><td colspan='5'>Sin clientes</td></tr>";
       return;
     }
-
     data.forEach(c => {
       tabla.innerHTML += `
         <tr>
@@ -164,13 +149,12 @@ async function cargar(){
           <td>${c.telefono || "-"}</td>
           <td>${c.correo || "-"}</td>
           <td>
-            <button onclick="abrirModal('${c._id}','${c.nombre}','${c.cedula}','${c.telefono || ""}','${c.correo || ""}')">✏️</button>
-            <button onclick="eliminar('${c._id}')">🗑</button>
+            <button onclick="abrirEditar('${c._id}','${c.nombre}','${c.cedula}','${c.telefono || ""}','${c.correo || ""}')">✏️</button>
+            <button onclick="abrirEliminar('${c._id}')">🗑</button>
           </td>
         </tr>
       `;
     });
-
   }catch(e){
     console.error(e);
     alert("❌ No conecta con el servidor");
@@ -179,10 +163,7 @@ async function cargar(){
 
 // ================= GUARDAR NUEVO =================
 async function guardar(){
-  if(!nombre.value || !cedula.value){
-    return alert("Completa los datos");
-  }
-
+  if(!nombre.value || !cedula.value) return alert("Completa los datos");
   await fetch(API + '/clientes', {
     method:"POST",
     headers:{'Content-Type':'application/json'},
@@ -193,27 +174,22 @@ async function guardar(){
       correo: correo.value
     })
   });
-
-  nombre.value = "";
-  cedula.value = "";
-  telefono.value = "";
-  correo.value = "";
-
+  nombre.value = cedula.value = telefono.value = correo.value = "";
   cargar();
 }
 
 // ================= MODAL EDITAR =================
-function abrirModal(id, nombreActual, cedulaActual, telefonoActual, correoActual){
-  document.getElementById('editId').value      = id;
-  document.getElementById('editNombre').value  = nombreActual;
-  document.getElementById('editCedula').value  = cedulaActual;
-  document.getElementById('editTelefono').value= telefonoActual;
-  document.getElementById('editCorreo').value  = correoActual;
-  document.getElementById('overlay').classList.add('open');
+function abrirEditar(id, n, c, t, e){
+  document.getElementById('editId').value       = id;
+  document.getElementById('editNombre').value   = n;
+  document.getElementById('editCedula').value   = c;
+  document.getElementById('editTelefono').value = t;
+  document.getElementById('editCorreo').value   = e;
+  document.getElementById('overlayEditar').classList.add('open');
 }
 
-function cerrarModal(){
-  document.getElementById('overlay').classList.remove('open');
+function cerrarEditar(){
+  document.getElementById('overlayEditar').classList.remove('open');
 }
 
 async function guardarEdicion(){
@@ -222,33 +198,47 @@ async function guardarEdicion(){
   const cedula   = document.getElementById('editCedula').value;
   const telefono = document.getElementById('editTelefono').value;
   const correo   = document.getElementById('editCorreo').value;
-
   if(!nombre || !cedula) return alert("Completa los datos");
-
   await fetch(API + '/clientes/editar', {
     method:'PUT',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ id, nombre, cedula, telefono, correo })
   });
-
-  cerrarModal();
+  cerrarEditar();
   cargar();
 }
 
-// ================= ELIMINAR =================
-async function eliminar(id){
-  let pass = prompt("Contraseña");
-  if(pass !== "agro123") return;
+// ================= MODAL ELIMINAR =================
+function abrirEliminar(id){
+  document.getElementById('deleteId').value  = id;
+  document.getElementById('deletePass').value = "";
+  document.getElementById('passError').style.display = 'none';
+  document.getElementById('overlayEliminar').classList.add('open');
+  setTimeout(() => document.getElementById('deletePass').focus(), 100);
+}
 
-  if(!confirm("¿Eliminar?")) return;
+function cerrarEliminar(){
+  document.getElementById('overlayEliminar').classList.remove('open');
+}
 
-  await fetch(API + `/clientes/${id}`,{ method:'DELETE' });
-
+async function confirmarEliminar(){
+  const pass = document.getElementById('deletePass').value;
+  if(pass !== "agro123"){
+    document.getElementById('passError').style.display = 'block';
+    return;
+  }
+  const id = document.getElementById('deleteId').value;
+  await fetch(API + `/clientes/${id}`, { method:'DELETE' });
+  cerrarEliminar();
   cargar();
 }
+
+// Enter en el campo contraseña también confirma
+document.getElementById('deletePass').addEventListener('keydown', e => {
+  if(e.key === 'Enter') confirmarEliminar();
+});
 
 cargar();
-
 </script>
 
 </body>
