@@ -506,64 +506,143 @@ async function confirmarAbono() {
   }
 }
 
-// ================= RECIBO =================
+ // ================= RECIBO =================
 function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
-  let win = window.open("", "", "width=300,height=700");
+  let win = window.open("", "", "width=380,height=900");
 
+  // Productos
   let productos = (d.productos && d.productos.length)
-    ? d.productos.map(p => `${p.nombre} x${p.cantidad} = $${(p.precio * p.cantidad).toFixed(2)}<br>`).join("")
-    : "Sin productos registrados<br>";
+    ? d.productos.map(p => `
+        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+          <span>${p.nombre} x${p.cantidad}</span>
+          <b>$${(p.precio * p.cantidad).toFixed(2)}</b>
+        </div>`).join("")
+    : `<div style="color:#999;">Sin productos registrados</div>`;
 
-  let pagos = (d.pagos && d.pagos.length)
-    ? d.pagos.map(p => {
-        let metodo = p.tipoPago === "transferencia"
-          ? ` | 🏦 ${p.banco || ""}`
-          : " | 💵 Efectivo";
-        return `$${p.monto} - ${new Date(p.fecha).toLocaleString()}${metodo}<br>`;
-      }).join("")
-    : "Sin pagos<br>";
+  // Historial de pagos en tabla
+  let filasHistorial = "";
+  let totalAcumulado = 0;
+  if (d.pagos && d.pagos.length) {
+    d.pagos.forEach((p, i) => {
+      totalAcumulado += p.monto;
+      const fechaObj  = new Date(p.fecha);
+      const fechaStr  = fechaObj.toLocaleDateString("es-EC");
+      const horaStr   = fechaObj.toLocaleTimeString("es-EC", { hour: "2-digit", minute: "2-digit" });
+      const esUltimo  = i === d.pagos.length - 1;
+      const metodo    = p.tipoPago === "transferencia"
+        ? `<span style="background:#e8f0ff;color:#1a45a0;font-size:11px;padding:3px 8px;border-radius:5px;font-weight:700;">Transf.</span>`
+        : `<span style="background:#e8f8f0;color:#1a7a45;font-size:11px;padding:3px 8px;border-radius:5px;font-weight:700;">Efectivo</span>`;
+      const bg = i % 2 === 0 ? "#fff" : "#fffaf9";
+      const montoColor = esUltimo ? "#ff3f34" : "#2ecc71";
+      const montoLabel = esUltimo ? `$${p.monto.toFixed(2)} ←` : `$${p.monto.toFixed(2)}`;
+      let detalle = "";
+      if (p.tipoPago === "transferencia" && esUltimo) {
+        detalle = `<div style="grid-column:1/-1;padding:0 10px 8px;font-size:12px;color:#555;">
+          🏦 ${p.banco || ""} | 👤 ${p.remitente || "-"} | 🧾 ${p.comprobante || "-"}
+        </div>`;
+      }
+      filasHistorial += `
+        <div style="display:grid;grid-template-columns:1fr 75px 85px;padding:8px 10px;font-size:13px;border-bottom:1px solid #ffeeed;align-items:center;background:${bg};">
+          <div>
+            <div style="font-weight:600;color:#1e272e;">${fechaStr}</div>
+            <div style="font-size:11px;color:#999;">${horaStr}</div>
+          </div>
+          <div style="text-align:right;font-weight:700;color:${montoColor};">${montoLabel}</div>
+          <div style="text-align:right;">${metodo}</div>
+        </div>
+        ${detalle}`;
+    });
+  } else {
+    filasHistorial = `<div style="padding:10px;color:#999;font-size:13px;">Sin pagos registrados</div>`;
+  }
 
-  let pagado   = d.pagado  || 0;
-  let total    = d.total   || 0;
-  let restante = d.restante ?? (total - pagado);
+  // Método de pago actual
+  let infoTransferencia = tipoPago === "transferencia" ? `
+    <div style="background:#fff3f3;border-left:4px solid #ff3f34;padding:10px 14px;border-radius:8px;font-size:14px;margin-bottom:14px;color:#333;line-height:1.8;">
+      <div>Método: <b>Transferencia</b></div>
+      <div>Banco: <b>${banco}</b></div>
+      <div>Remitente: <b>${remitente || "-"}</b></div>
+      <div>Comprobante: <b>${comprobante}</b></div>
+    </div>` : `
+    <div style="background:#f0fff4;border-left:4px solid #2ecc71;padding:10px 14px;border-radius:8px;font-size:14px;margin-bottom:14px;color:#333;">
+      <div>Método: <b>Efectivo</b></div>
+    </div>`;
 
-  let infoTransferencia = tipoPago === "transferencia"
-    ? `<div class="line"></div>
-       🏦 Banco: ${banco}<br>
-       👤 Remitente: ${remitente || "-"}<br>
-       🧾 Comprobante: ${comprobante}<br>`
-    : "";
+  const pagado   = d.pagado  || 0;
+  const total    = d.total   || 0;
+  const restante = d.restante ?? (total - pagado);
+  const fecha    = new Date().toLocaleString("es-EC");
 
   win.document.write(`
+  <!DOCTYPE html>
   <html>
   <head>
+    <meta charset="UTF-8">
+    <title>Recibo - Agro Naranjito</title>
     <style>
-      body { font-family: monospace; width: 280px; margin: auto; padding: 10px; }
-      h2 { text-align: center; }
-      .line { border-top: 1px dashed #000; margin: 8px 0; }
+      * { margin:0; padding:0; box-sizing:border-box; }
+      body { font-family:'Segoe UI',Arial,sans-serif; background:#f5f6fa; display:flex; justify-content:center; padding:20px; }
+      .recibo { background:white; width:320px; padding:28px 24px; border-radius:12px; border:1px solid #e0e0e0; color:#1e272e; }
+      .lbl { font-size:11px; color:#999; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px; }
+      .sep { border:none; border-top:1px dashed #ddd; margin:14px 0; }
+      .sep-red { border:none; border-top:2px dashed #ff3f34; margin:14px 0; }
+      .fila { display:flex; justify-content:space-between; font-size:15px; color:#555; margin-bottom:6px; }
+      @media print { body { background:white; padding:0; } .recibo { border:none; } }
     </style>
   </head>
   <body onload="window.print()">
-    <h2>🧾 DETALLE DEUDA</h2>
-    <div class="line"></div>
-    Cliente: ${d.cliente || "-"}<br>
-    Cédula: ${d.cedula   || "-"}<br>
-    Celular: ${d.celular || "-"}<br>
-    <div class="line"></div>
-    📦 Productos<br>${productos}
-    <div class="line"></div>
-    💰 Pagos<br>${pagos}
-    <div class="line"></div>
-    💵 Método: ${tipoPago === "efectivo" ? "Efectivo" : "Transferencia"}<br>
+  <div class="recibo">
+
+    <div style="text-align:center; border-bottom:2px dashed #ff3f34; padding-bottom:16px; margin-bottom:20px;">
+      <div style="font-size:22px;font-weight:700;color:#ff3f34;letter-spacing:1px;">AGRO NARANJITO</div>
+      <div style="font-size:14px;color:#666;margin-top:4px;">Comprobante de Abono</div>
+      <div style="font-size:13px;color:#999;margin-top:3px;">${fecha}</div>
+    </div>
+
+    <div class="lbl">Cliente</div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:6px;">${d.cliente || "-"}</div>
+    <div style="display:flex;gap:16px;margin-bottom:4px;">
+      <div style="font-size:14px;color:#555;">CI: <b style="color:#1e272e;">${d.cedula || "-"}</b></div>
+      <div style="font-size:14px;color:#555;">Tel: <b style="color:#1e272e;">${d.celular || "-"}</b></div>
+    </div>
+
+    <hr class="sep">
+    <div class="lbl">Productos</div>
+    ${productos}
+
+    <hr class="sep">
+    <div class="lbl">Historial de Pagos</div>
+    <div style="border:1px solid #ffe0de;border-radius:8px;overflow:hidden;margin-bottom:4px;">
+      <div style="display:grid;grid-template-columns:1fr 75px 85px;background:#ff3f34;padding:7px 10px;font-size:11px;font-weight:700;color:white;text-transform:uppercase;letter-spacing:0.5px;">
+        <span>Fecha</span><span style="text-align:right;">Monto</span><span style="text-align:right;">Método</span>
+      </div>
+      ${filasHistorial}
+      <div style="display:flex;justify-content:space-between;padding:8px 10px;background:#fff3f3;font-size:13px;font-weight:700;border-top:2px dashed #ff3f34;">
+        <span style="color:#ff3f34;">Total abonado</span>
+        <span style="color:#ff3f34;">$${totalAcumulado.toFixed(2)}</span>
+      </div>
+    </div>
+
+    <hr class="sep">
+    <div class="lbl">Método de este pago</div>
     ${infoTransferencia}
-    <div class="line"></div>
-    💵 Abono: $${monto.toFixed(2)}<br><br>
-    Total: $${total.toFixed(2)}<br>
-    Pagado: $${pagado.toFixed(2)}<br>
-    Restante: $${restante.toFixed(2)}
+
+    <hr class="sep-red">
+    <div class="fila"><span>Total deuda</span><b style="color:#1e272e;">$${total.toFixed(2)}</b></div>
+    <div class="fila"><span>Total pagado</span><b style="color:#1e272e;">$${pagado.toFixed(2)}</b></div>
+    <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:#ff3f34;border-top:1px solid #eee;padding-top:8px;margin-top:4px;">
+      <span>Restante</span><span>$${restante.toFixed(2)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:20px;font-weight:700;color:#1e272e;background:#fff0ef;border-radius:8px;padding:12px 14px;margin-top:12px;">
+      <span>Este abono</span><span>$${monto.toFixed(2)}</span>
+    </div>
+
+    <div style="text-align:center;margin-top:18px;font-size:12px;color:#aaa;border-top:1px dashed #ddd;padding-top:12px;">
+      Gracias por su pago — Agro Naranjito
+    </div>
+  </div>
   </body>
-  </html>
-  `);
+  </html>`);
   win.document.close();
 }
 
