@@ -485,7 +485,7 @@ function confirmarModalPass() {
   if (fn) fn();
 }
 
-/* ═══ IMPRIMIR CIERRE ═══ */
+/* ═══ IMPRIMIR CIERRE (OPTIMIZADO PARA ALTA VISIBILIDAD) ═══ */
 function imprimirCierre(data) {
   const lista = extraerTransferencias(data).length
     ? extraerTransferencias(data)
@@ -494,62 +494,183 @@ function imprimirCierre(data) {
   const transHTML = lista.length
     ? lista.map(t => `
         <tr>
-          <td>${t.banco       || 'S/B'}</td>
-          <td>${t.comprobante || 'S/N'}</td>
-          <td>$${t.monto      || 0}</td>
+          <td><b>${t.banco       || 'S/B'}</b></td>
+          <td><b>${t.comprobante || 'S/N'}</b></td>
+          <td><b>$${t.monto      || 0}</b></td>
           <td>${t.motivo      || ''}</td>
         </tr>`).join('')
-    : '<tr><td colspan="4">Sin transferencias</td></tr>';
+    : '<tr><td colspan="4" style="text-align:center; padding:10px 0;">Sin transferencias</td></tr>';
 
   const gastosHTML = (data.gastosLista && data.gastosLista.length)
-    ? data.gastosLista.map(g => `<div>- $${g.monto} | ${g.motivo}</div>`).join('')
+    ? data.gastosLista.map(g => `<div class="gasto-item">• $${g.monto} | ${g.motivo}</div>`).join('')
     : 'Sin gastos registrados';
 
-  const v = window.open('', '_blank', 'width=420,height=720');
+  const v = window.open('', '_blank', 'width=450,height=800');
   v.document.write(`<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Cierre de Caja</title>
-<style>
-  * { color: #000 !important; background: #fff !important; }
-  body  { font-family:'Courier New', monospace; width:80mm; margin:0 auto; padding:10px; font-size:12px; }
-  h2    { text-align:center; margin:8px 0; font-size:15px; font-weight:bold; }
-  .sep  { border:none; border-top:1px dashed #000; margin:8px 0; }
-  table { width:100%; border-collapse:collapse; font-size:11px; margin-top:6px; }
-  th    { text-align:left; border-bottom:1px solid #000; padding:2px 0; font-weight:bold; }
-  td    { padding:2px 3px; }
-  .tot  { font-weight:bold; font-size:13px; margin-top:6px; }
-  div   { margin-bottom:2px; }
-  @page { size:80mm auto; margin:4mm; }
-</style></head><body>
-<h2>NEXUS — CIERRE DE CAJA</h2>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Cierre de Caja</title>
+  <style>
+    /* Forzar negro absoluto y eliminar suavizados grises */
+    * { 
+      color: #000000 !important; 
+      background: #ffffff !important; 
+      -webkit-print-color-adjust: exact !important; 
+      print-color-adjust: exact !important;
+    }
+    
+    body { 
+      font-family: 'Arial', 'Helvetica', sans-serif; 
+      width: 76mm; 
+      margin: 0 auto; 
+      padding: 5px; 
+      font-size: 15px; /* Letra base más grande */
+      line-height: 1.4;
+    }
+
+    h2 { 
+      text-align: center; 
+      margin: 10px 0; 
+      font-size: 20px; /* Título imponente */
+      font-weight: 900; 
+      letter-spacing: 0.5px;
+    }
+
+    .sep { 
+      border: none; 
+      border-top: 3px double #000000; /* Separador más grueso y visible */
+      margin: 12px 0; 
+    }
+
+    .info-principal div {
+      margin-bottom: 6px;
+      font-size: 16px; /* Datos clave más grandes */
+    }
+
+    .info-principal b {
+      font-weight: 900;
+    }
+
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      font-size: 14px; 
+      margin-top: 8px; 
+    }
+
+    th { 
+      text-align: left; 
+      border-bottom: 2px solid #000000; 
+      padding: 4px 0; 
+      font-weight: bold; 
+      font-size: 14px;
+    }
+
+    td { 
+      padding: 5px 2px; 
+      vertical-align: top;
+    }
+
+    .gasto-item {
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    /* Sección de totales con fuentes gigantes */
+    .tot { 
+      font-weight: 900; 
+      font-size: 18px; /* Saldo y Esperado gigantes */
+      margin-top: 8px; 
+      border: 1px solid #000000;
+      padding: 6px;
+      text-align: center;
+    }
+    
+    .tot-sm {
+      font-weight: bold;
+      font-size: 16px;
+      margin-top: 5px;
+    }
+
+    .seccion-titulo {
+      font-size: 16px;
+      font-weight: 900;
+      text-transform: uppercase;
+      margin-top: 10px;
+      display: block;
+    }
+
+    @page { 
+      size: 80mm auto; 
+      margin: 0mm; 
+    }
+  </style>
+</head>
+<body>
+
+<h2>NEXUS</h2>
+<h2>CIERRE DE CAJA</h2>
+
 <hr class="sep">
-<div>Fecha: ${new Date().toLocaleString('es-EC')}</div>
+<div style="font-size: 13px; text-align: center; font-weight: bold;">
+  Fecha: ${new Date().toLocaleString('es-EC', { hour12: true })}
+</div>
 <hr class="sep">
-<div>Apertura:            $${data.apertura ?? 0}</div>
-<div>Ventas (efectivo):   $${data.ingresos ?? 0}</div>
-<div>Gastos:            - $${data.gastos ?? 0}</div>
+
+<div class="info-principal">
+  <div>Apertura: <b>$${data.apertura ?? 0}</b></div>
+  <div>Ventas (efectivo): <b>$${data.ingresos ?? 0}</b></div>
+  <div>Gastos: <b>- $${data.gastos ?? 0}</b></div>
+</div>
+
 <hr class="sep">
-<b>Transferencias:</b>
+<span class="seccion-titulo">💳 Transferencias</span>
 <table>
-  <tr><th>Banco</th><th>Comprobante</th><th>Monto</th><th>Motivo</th></tr>
+  <tr><th>Banco</th><th>Compr.</th><th>Monto</th><th>Mot.</th></tr>
   ${transHTML}
 </table>
-<div class="tot">Total Transferencias: $${data.transferencias ?? 0}</div>
+<div class="tot-sm">Total Transferencias: $${data.transferencias ?? 0}</div>
+
 <hr class="sep">
-<b>Gastos detalle:</b><br>${gastosHTML}
+<span class="seccion-titulo">📉 Detalle Gastos</span>
+<div style="margin-top: 6px;">
+  ${gastosHTML}
+</div>
+
 <hr class="sep">
-<div>Esperado en caja:    $${data.esperado ?? 0}</div>
-<div>Real contado:        $${data.real ?? 0}</div>
-<div>Diferencia:          $${data.diferencia ?? 0}</div>
+<div class="info-principal">
+  <div>Esperado en caja: <b>$${data.esperado ?? 0}</b></div>
+  <div>Real contado: <b>$${data.real ?? 0}</b></div>
+  <div style="font-size: 18px;">Diferencia: <b style="text-decoration: underline;">$${data.diferencia ?? 0}</b></div>
+</div>
+
+<div class="tot">
+  SALDO TOTAL: $${data.saldo ?? 0}
+</div>
+
+<div class="tot" style="margin-top: 10px;">
+  DEJADO EN CAJA: $${data.dejar ?? 0}
+</div>
+
 <hr class="sep">
-<div class="tot">Saldo total:         $${data.saldo ?? 0}</div>
-<div class="tot">Dejado en caja:      $${data.dejar ?? 0}</div>
-<hr class="sep">
-<div style="text-align:center;font-size:11px;margin-top:6px;">— Fin del comprobante —</div>
-<script>window.onload = () => window.print();<\/script>
-</body></html>`);
+<div style="text-align:center; font-size:13px; font-weight:bold; margin: 15px 0 30px 0;">
+  — COMPROBANTE DE CIERRE —
+</div>
+
+<script>
+  window.onload = () => {
+    setTimeout(() => {
+      window.print();
+      window.close();
+    }, 250);
+  };
+<\/script>
+</body>
+</html>`);
   v.document.close();
 }
-
 /* ═══ TOAST ═══ */
 function alertUI(msg) {
   let t = document.getElementById('_toast');
