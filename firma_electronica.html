@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Firma Electrónica SRI</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #f0f2f5;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    width: 100%;
+    max-width: 520px;
+    overflow: hidden;
+  }
+
+  .header {
+    background: #1e272e;
+    padding: 28px 32px;
+    border-bottom: 4px solid #ff3f34;
+  }
+
+  .header h1 {
+    color: #fff;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .header p {
+    color: rgba(255,255,255,0.6);
+    font-size: 13px;
+    margin-top: 4px;
+  }
+
+  .body {
+    padding: 32px;
+  }
+
+  .field {
+    margin-bottom: 20px;
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #7f8c8d;
+    margin-bottom: 8px;
+  }
+
+  .drop-zone {
+    border: 2px dashed #ddd;
+    border-radius: 10px;
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    background: #fafafa;
+    position: relative;
+  }
+
+  .drop-zone:hover, .drop-zone.active {
+    border-color: #ff3f34;
+    background: #fff5f5;
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .drop-icon {
+    font-size: 36px;
+    margin-bottom: 10px;
+  }
+
+  .drop-zone p {
+    font-size: 14px;
+    color: #555;
+  }
+
+  .drop-zone small {
+    font-size: 12px;
+    color: #aaa;
+    display: block;
+    margin-top: 4px;
+  }
+
+  .file-selected {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    background: #eafaf1;
+    border: 1px solid #27ae60;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-top: 10px;
+    font-size: 13px;
+    color: #27ae60;
+    font-weight: 600;
+  }
+
+  input[type="text"], input[type="password"] {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #1e272e;
+    background: #fff;
+    transition: border-color 0.2s;
+    outline: none;
+  }
+
+  input[type="text"]:focus, input[type="password"]:focus {
+    border-color: #ff3f34;
+  }
+
+  .btn {
+    width: 100%;
+    padding: 13px;
+    background: #ff3f34;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+    transition: background 0.2s, transform 0.1s;
+    margin-top: 8px;
+  }
+
+  .btn:hover { background: #e03329; }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { background: #ccc; cursor: not-allowed; }
+
+  .btn-secondary {
+    width: 100%;
+    padding: 11px;
+    background: #f0f2f5;
+    color: #555;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-top: 10px;
+  }
+
+  .btn-secondary:hover { background: #e0e3e8; }
+
+  .alert {
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 13px;
+    margin-top: 20px;
+    display: none;
+    line-height: 1.5;
+  }
+
+  .alert.success {
+    background: #eafaf1;
+    border: 1px solid #27ae60;
+    color: #1e8449;
+    display: block;
+  }
+
+  .alert.error {
+    background: #fdedec;
+    border: 1px solid #e74c3c;
+    color: #c0392b;
+    display: block;
+  }
+
+  .alert.info {
+    background: #eaf4fb;
+    border: 1px solid #3498db;
+    color: #1a5276;
+    display: block;
+  }
+
+  .loader {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+    padding: 12px;
+    color: #555;
+    font-size: 14px;
+  }
+
+  .spinner {
+    width: 18px;
+    height: 18px;
+    border: 2.5px solid #eee;
+    border-top-color: #ff3f34;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .divider {
+    border: none;
+    border-top: 1px solid #f0f0f0;
+    margin: 24px 0;
+  }
+
+  .estado-box {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 16px;
+    font-size: 13px;
+  }
+
+  .estado-box h3 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #aaa;
+    margin-bottom: 10px;
+  }
+
+  pre {
+    font-size: 11px;
+    color: #555;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 120px;
+    overflow-y: auto;
+  }
+
+  .server-url {
+    font-size: 12px;
+    color: #aaa;
+    text-align: center;
+    margin-top: 18px;
+  }
+
+  .server-url input {
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    width: 100%;
+    text-align: center;
+    color: #555;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="header">
+    <h1>🔐 NEXUS — Firma Electrónica SRI</h1>
+    <p>Registro del certificado .p12 en Invoka para facturación electrónica</p>
+  </div>
+
+  <div class="body">
+
+    <!-- URL del servidor -->
+    <div class="field">
+      <label>URL del servidor (Render)</label>
+      <input type="text" id="serverUrl" placeholder="https://tu-app.onrender.com" value="">
+    </div>
+
+    <hr class="divider">
+
+    <!-- Zona de carga del archivo -->
+    <div class="field">
+      <label>Archivo de firma electrónica (.p12)</label>
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept=".p12">
+        <div class="drop-icon">📁</div>
+        <p>Arrastra tu archivo <strong>.p12</strong> aquí</p>
+        <small>o haz clic para seleccionarlo</small>
+      </div>
+      <div class="file-selected" id="fileSelected">
+        ✅ <span id="fileName">—</span>
+      </div>
+    </div>
+
+    <!-- Contraseña -->
+    <div class="field">
+      <label>Contraseña del certificado .p12</label>
+      <input type="password" id="password" placeholder="Contraseña de la firma">
+    </div>
+
+    <!-- Botón enviar -->
+    <button class="btn" id="btnSubir" onclick="subirFirma()">
+      🔐 Registrar firma en Invoka
+    </button>
+
+    <!-- Loader -->
+    <div class="loader" id="loader">
+      <div class="spinner"></div> Subiendo firma al servidor...
+    </div>
+
+    <!-- Alerta resultado -->
+    <div class="alert" id="alert"></div>
+
+    <hr class="divider">
+
+    <!-- Verificar estado -->
+    <button class="btn-secondary" onclick="verificarEstado()">
+      🔍 Verificar estado de empresa en Invoka
+    </button>
+
+    <div class="estado-box" id="estadoBox" style="display:none; margin-top:14px;">
+      <h3>Respuesta de Invoka</h3>
+      <pre id="estadoContent"></pre>
+    </div>
+
+    <div class="server-url">
+      <p>Herramienta de administración — Agro Naranjito #1</p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const fileInput = document.getElementById('fileInput');
+  const dropZone  = document.getElementById('dropZone');
+  const fileSelected = document.getElementById('fileSelected');
+  const fileName  = document.getElementById('fileName');
+  let base64Data  = null;
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    leerArchivo(file);
+  });
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('active'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('active'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('active');
+    const file = e.dataTransfer.files[0];
+    if (file) leerArchivo(file);
+  });
+
+  function leerArchivo(file) {
+    if (!file.name.endsWith('.p12')) {
+      mostrarAlerta('⚠️ Solo se aceptan archivos con extensión .p12', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      base64Data = reader.result.split(',')[1];
+      fileName.textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+      fileSelected.style.display = 'flex';
+      limpiarAlerta();
+    };
+    reader.onerror = () => mostrarAlerta('❌ Error leyendo el archivo', 'error');
+    reader.readAsDataURL(file);
+  }
+
+  function getServerUrl() {
+    const url = document.getElementById('serverUrl').value.trim().replace(/\/$/, '');
+    if (!url) { mostrarAlerta('⚠️ Ingresa la URL de tu servidor Render primero.', 'error'); return null; }
+    return url;
+  }
+
+  async function subirFirma() {
+    const serverUrl = getServerUrl();
+    if (!serverUrl) return;
+
+    if (!base64Data) { mostrarAlerta('⚠️ Selecciona el archivo .p12 primero.', 'error'); return; }
+
+    const password = document.getElementById('password').value.trim();
+    if (!password) { mostrarAlerta('⚠️ Ingresa la contraseña del certificado.', 'error'); return; }
+
+    setLoading(true);
+    limpiarAlerta();
+
+    try {
+      const resp = await fetch(`${serverUrl}/sri/firma`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ firma_base64: base64Data, password })
+      });
+
+      const data = await resp.json();
+
+      if (data.ok) {
+        mostrarAlerta('✅ ¡Firma electrónica registrada exitosamente en Invoka!\n\nAhora las facturas serán autorizadas por el SRI automáticamente.', 'success');
+      } else {
+        mostrarAlerta('❌ Error de Invoka: ' + (data.error || JSON.stringify(data)), 'error');
+      }
+    } catch (err) {
+      mostrarAlerta('❌ No se pudo conectar con el servidor: ' + err.message + '\n\nVerifica que la URL sea correcta y el servidor esté activo.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function verificarEstado() {
+    const serverUrl = getServerUrl();
+    if (!serverUrl) return;
+
+    document.getElementById('estadoBox').style.display = 'none';
+    limpiarAlerta();
+    mostrarAlerta('🔍 Consultando estado de la empresa en Invoka...', 'info');
+
+    try {
+      const resp = await fetch(`${serverUrl}/sri/estado`);
+      const data = await resp.json();
+      limpiarAlerta();
+      document.getElementById('estadoContent').textContent = JSON.stringify(data, null, 2);
+      document.getElementById('estadoBox').style.display = 'block';
+    } catch (err) {
+      mostrarAlerta('❌ Error al verificar: ' + err.message, 'error');
+    }
+  }
+
+  function setLoading(loading) {
+    document.getElementById('loader').style.display = loading ? 'flex' : 'none';
+    document.getElementById('btnSubir').disabled = loading;
+  }
+
+  function mostrarAlerta(msg, tipo) {
+    const el = document.getElementById('alert');
+    el.textContent = msg;
+    el.className = 'alert ' + tipo;
+    el.style.whiteSpace = 'pre-line';
+  }
+
+  function limpiarAlerta() {
+    const el = document.getElementById('alert');
+    el.className = 'alert';
+    el.textContent = '';
+  }
+</script>
+
+</body>
+</html>
