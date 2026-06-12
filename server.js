@@ -103,8 +103,6 @@ async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento
     return { ok: false, error: "API Key de Invoka no configurada" };
   }
 
-  // Tipo de identificación SRI:
-  // "04" = RUC (13 dígitos), "05" = Cédula (10 dígitos), "07" = Consumidor Final
   const esConsumidorFinal  = !cedula || cedula === "9999999999999" || cedula === "SIN CÉDULA";
   const tipoIdentificacion = esConsumidorFinal ? "07" : (String(cedula).length === 13 ? "04" : "05");
   const identificacion     = esConsumidorFinal ? "9999999999999" : String(cedula);
@@ -122,8 +120,8 @@ async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento
       descuento:               0,
       precioTotalSinImpuesto:  subtotal,
       impuestos: [{
-        codigo:           "2",   // IVA
-        codigoPorcentaje: "4",   // 15% IVA vigente Ecuador 2025
+        codigo:           "2",
+        codigoPorcentaje: "4",
         tarifa:           15,
         baseImponible:    subtotal,
         valor:            ivaValor
@@ -169,7 +167,17 @@ async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento
       body: JSON.stringify(cuerpo)
     });
 
-    const data = await resp.json();
+    const rawText = await resp.text();
+    console.log("📋 Invoka status:", resp.status);
+    console.log("📋 Invoka raw response:", rawText.slice(0, 500));
+
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch (e) {
+      console.error("❌ Invoka no devolvió JSON válido");
+      return { ok: false, error: `Invoka devolvió HTML (status ${resp.status}), no JSON` };
+    }
 
     if (data.claveAcceso || data.numeroAutorizacion || data.success) {
       console.log(`✅ Factura SRI emitida — Clave: ${data.claveAcceso || "pendiente"}`);
