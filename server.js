@@ -96,6 +96,82 @@ app.post('/sri/configurar', async (req, res) => {
   }
 });
 
+// =========================================================================
+// INVOKA — SUBIR FIRMA ELECTRÓNICA .p12
+// =========================================================================
+// Pega este bloque DESPUÉS de /sri/configurar y ANTES de emitirFacturaInvoka
+
+// ── Subir firma electrónica (Base64 JSON) ──────────────────────────────
+app.post('/sri/firma', async (req, res) => {
+  if (!process.env.INVOKA_API_KEY) {
+    return res.status(500).json({ error: "INVOKA_API_KEY no configurada en Render" });
+  }
+
+  const { firma_base64, password } = req.body;
+
+  if (!firma_base64 || !password) {
+    return res.status(400).json({ error: "Se requiere firma_base64 y password" });
+  }
+
+  try {
+    const response = await fetch("https://www.invoka.com.ec/api/empresa/firma", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": process.env.INVOKA_API_KEY
+      },
+      body: JSON.stringify({
+        firma_base64,
+        password,
+        ruc: process.env.INVOKA_RUC
+      })
+    });
+
+    const rawText = await response.text();
+    console.log("📋 Invoka /empresa/firma status:", response.status);
+    console.log("📋 Invoka /empresa/firma response:", rawText.slice(0, 300));
+
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch (e) {
+      return res.status(500).json({
+        error: `Invoka devolvió respuesta no JSON (status ${response.status})`,
+        raw: rawText.slice(0, 200)
+      });
+    }
+
+    if (response.ok) {
+      console.log("✅ Firma electrónica registrada en Invoka exitosamente");
+      res.json({ ok: true, mensaje: "Firma registrada correctamente en Invoka", data });
+    } else {
+      console.warn("⚠️ Invoka rechazó la firma:", JSON.stringify(data));
+      res.status(response.status).json({ ok: false, error: data.mensaje || data.error || "Error en Invoka", data });
+    }
+  } catch (err) {
+    console.error("❌ Error al subir firma a Invoka:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Verificar estado de la empresa en Invoka ───────────────────────────
+app.get('/sri/estado', async (req, res) => {
+  if (!process.env.INVOKA_API_KEY) {
+    return res.status(500).json({ error: "INVOKA_API_KEY no configurada" });
+  }
+  try {
+    const response = await fetch(`https://www.invoka.com.ec/api/empresa/${process.env.INVOKA_RUC}`, {
+      headers: { "X-API-KEY": process.env.INVOKA_API_KEY }
+    });
+    const rawText = await response.text();
+    let data;
+    try { data = JSON.parse(rawText); } catch (e) { data = { raw: rawText.slice(0, 200) }; }
+    res.json({ status: response.status, data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Función interna: emitir factura electrónica al SRI via Invoka ─────────
 async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento, total }) {
   if (!process.env.INVOKA_API_KEY) {
