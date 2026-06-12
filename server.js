@@ -58,12 +58,139 @@ if (process.env.BREVO_SMTP_KEY) {
   console.warn("⚠️ BREVO_SMTP_KEY no configurado en Render. Envío de correos inhabilitado.");
 }
 
+// =========================================================================
+// 3. INVOKA — FACTURACIÓN ELECTRÓNICA SRI
+// =========================================================================
+
+// ── Registrar empresa en Invoka (ejecutar solo una vez) ──────────────────
+app.post('/sri/configurar', async (req, res) => {
+  if (!process.env.INVOKA_API_KEY) {
+    return res.status(500).json({ error: "INVOKA_API_KEY no configurada en Render" });
+  }
+  try {
+    const response = await fetch("https://www.invoka.com.ec/api/empresa/crear", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": process.env.INVOKA_API_KEY
+      },
+      body: JSON.stringify({
+        ruc:               process.env.INVOKA_RUC,
+        razon_social:      process.env.INVOKA_RAZON_SOCIAL,
+        grancontribuyente: false,
+        smtp:              true,
+        smtp_host:         "smtp-relay.brevo.com",
+        smtp_port:         465,
+        smtp_user:         "ad85ef001@smtp-brevo.com",
+        smtp_password:     process.env.BREVO_SMTP_KEY,
+        smtp_encryption:   "ssl",
+        smtp_from_email:   "ad85ef001@smtp-brevo.com"
+      })
+    });
+    const data = await response.json();
+    console.log("📋 Respuesta Invoka /empresa/crear:", JSON.stringify(data));
+    res.json(data);
+  } catch (err) {
+    console.error("❌ Error al registrar empresa en Invoka:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Función interna: emitir factura electrónica al SRI via Invoka ─────────
+async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento, total }) {
+  if (!process.env.INVOKA_API_KEY) {
+    console.warn("⚠️ INVOKA_API_KEY no configurada. Factura electrónica omitida.");
+    return { ok: false, error: "API Key de Invoka no configurada" };
+  }
+
+  // Tipo de identificación SRI:
+  // "04" = RUC (13 dígitos), "05" = Cédula (10 dígitos), "07" = Consumidor Final
+  const esConsumidorFinal  = !cedula || cedula === "9999999999999" || cedula === "SIN CÉDULA";
+  const tipoIdentificacion = esConsumidorFinal ? "07" : (String(cedula).length === 13 ? "04" : "05");
+  const identificacion     = esConsumidorFinal ? "9999999999999" : String(cedula);
+
+  const detalles = (carrito || []).map((p, i) => {
+    const cantidad  = Number(p.amount || p.cantidad || 1);
+    const precio    = Number(p.precio || 0);
+    const subtotal  = precio * cantidad;
+    const ivaValor  = subtotal * 0.15;
+    return {
+      codigoPrincipal:         p.codigo || `PROD-${i + 1}`,
+      descripcion:             p.nombre || "Producto",
+      cantidad,
+      precioUnitario:          precio,
+      descuento:               0,
+      precioTotalSinImpuesto:  subtotal,
+      impuestos: [{
+        codigo:           "2",   // IVA
+        codigoPorcentaje: "4",   // 15% IVA vigente Ecuador 2025
+        tarifa:           15,
+        baseImponible:    subtotal,
+        valor:            ivaValor
+      }]
+    };
+  });
+
+  const subtotalSinIva = detalles.reduce((s, d) => s + d.precioTotalSinImpuesto, 0);
+  const totalIva       = subtotalSinIva * 0.15;
+  const importeTotal   = subtotalSinIva + totalIva;
+
+  const cuerpo = {
+    ambiente:    Number(process.env.INVOKA_AMBIENTE || 1),
+    razonSocial: process.env.INVOKA_RAZON_SOCIAL || "AGRO NARANJITO #1",
+    ruc:         process.env.INVOKA_RUC,
+    receptor: {
+      razonSocial:       cliente || "CONSUMIDOR FINAL",
+      identificacion,
+      tipoIdentificacion,
+      ...(correo ? { email: correo } : {})
+    },
+    detalles,
+    infoFactura: {
+      totalSinImpuestos: subtotalSinIva,
+      totalDescuento:    Number(descuento || 0),
+      totalConImpuestos: [{
+        codigo:           "2",
+        codigoPorcentaje: "4",
+        baseImponible:    subtotalSinIva,
+        valor:            totalIva
+      }],
+      importeTotal
+    }
+  };
+
+  try {
+    const resp = await fetch("https://www.invoka.com.ec/api/factura/emitir", {
+      method:  "POST",
+      headers: {
+        "Content-Type":  "application/json",
+        "X-API-KEY":     process.env.INVOKA_API_KEY
+      },
+      body: JSON.stringify(cuerpo)
+    });
+
+    const data = await resp.json();
+
+    if (data.claveAcceso || data.numeroAutorizacion || data.success) {
+      console.log(`✅ Factura SRI emitida — Clave: ${data.claveAcceso || "pendiente"}`);
+      return { ok: true, claveAcceso: data.claveAcceso, autorizacion: data.numeroAutorizacion, data };
+    } else {
+      console.warn("⚠️ Invoka respondió sin autorización:", JSON.stringify(data));
+      return { ok: false, error: data.mensaje || data.error || "Respuesta inesperada de Invoka", data };
+    }
+  } catch (err) {
+    console.error("❌ Error al conectar con Invoka:", err.message);
+    return { ok: false, error: err.message };
+  }
+}
+
 // ── Helper: Generación dinámica del cuerpo HTML del comprobante ───────────
 function generarHTMLCorreo(datos, carrito, tipoPago) {
   const {
     cliente, cedula, subtotal, pct, descuentoMonto, totalFinal,
     tasaPct, montoInteres, meses, pago, vuelto,
-    bancoNombre, bancoCuenta, comprobante
+    bancoNombre, bancoCuenta, comprobante,
+    claveAccesoSRI
   } = datos;
 
   const fecha = new Date().toLocaleString("es-EC", { dateStyle: "long", timeStyle: "short" });
@@ -104,6 +231,17 @@ function generarHTMLCorreo(datos, carrito, tipoPago) {
     <tr>
       <td style="padding:4px 0; color:#e03329;">Descuento Aplicado (${pct}%)</td>
       <td style="text-align:right; color:#e03329; font-weight:500;">-$${Number(descuentoMonto).toFixed(2)}</td>
+    </tr>
+  ` : "";
+
+  const sriBadge = claveAccesoSRI ? `
+    <tr>
+      <td colspan="2" style="padding:8px 0;">
+        <div style="background:#eafaf1; border:1px solid #27ae60; border-radius:6px; padding:8px 12px; text-align:center;">
+          <p style="margin:0; font-size:11px; color:#27ae60; font-weight:700;">✅ FACTURA ELECTRÓNICA AUTORIZADA — SRI</p>
+          <p style="margin:4px 0 0; font-size:10px; color:#555; font-family:monospace; word-break:break-all;">${claveAccesoSRI}</p>
+        </div>
+      </td>
     </tr>
   ` : "";
 
@@ -151,6 +289,7 @@ function generarHTMLCorreo(datos, carrito, tipoPago) {
               <table width="100%" cellpadding="0" cellspacing="0">
                 ${descuentoRow}
                 ${detallePago}
+                ${sriBadge}
                 <tr>
                   <td colspan="2"><hr style="border:none; border-top:2px dashed #f0f0f0; margin:12px 0;"></td>
                 </tr>
@@ -182,7 +321,7 @@ const mapearDocs = (snapshot) => {
 };
 
 // =========================================================================
-// 2.5 MOTOR DE ALERTAS ACTIVAS - GUARDIÁN DE CADUCIDADES
+// 4. MOTOR DE ALERTAS ACTIVAS - GUARDIÁN DE CADUCIDADES
 // =========================================================================
 async function ejecutarRevisionCaducidades() {
   if (!transporter) return console.log("⚠️ Guardián abortado: Brevo SMTP no configurado.");
@@ -200,7 +339,7 @@ async function ejecutarRevisionCaducidades() {
     snapshot.forEach(doc => {
       const p = doc.data();
       if (p.caducidad) {
-        let fechaProd = new Date(p.caducidad + "T00:00:00");
+        let fechaProd  = new Date(p.caducidad + "T00:00:00");
         let diffTiempo = fechaProd - hoy;
         let diffDias   = Math.ceil(diffTiempo / (1000 * 60 * 60 * 24));
 
@@ -285,7 +424,7 @@ function iniciarGuardianCaducidades() {
 }
 
 // =========================================================================
-// 3. ENDPOINTS API REST
+// 5. ENDPOINTS API REST
 // =========================================================================
 
 app.get('/health', (req, res) => {
@@ -577,7 +716,7 @@ app.post('/correo/factura', async (req, res) => {
 });
 
 // =========================================================================
-// VENTAS
+// VENTAS  ← Integración Invoka añadida aquí
 // =========================================================================
 
 app.post('/ventas', async (req, res) => {
@@ -587,7 +726,7 @@ app.post('/ventas', async (req, res) => {
       fecha: req.body.fecha ? new Date(req.body.fecha).toISOString() : new Date().toISOString()
     };
 
-    await db.collection('ventas').add(nuevaVenta);
+    const ventaRef = await db.collection('ventas').add(nuevaVenta);
 
     if (Array.isArray(req.body.productos)) {
       const cliente = req.body.cliente || "Consumidor Final";
@@ -645,6 +784,34 @@ app.post('/ventas', async (req, res) => {
         fecha:     new Date().toISOString()
       });
     }
+
+    // ── Emitir factura electrónica al SRI via Invoka ──────────────────────
+    // Solo para ventas de contado (efectivo o transferencia), no crédito
+    if (req.body.tipo === "efectivo" || req.body.tipo === "transferencia") {
+      const sri = await emitirFacturaInvoka({
+        cliente:   req.body.cliente   || "CONSUMIDOR FINAL",
+        cedula:    req.body.cedula    || null,
+        correo:    req.body.correo    || null,
+        carrito:   req.body.productos || [],
+        descuento: req.body.descuento || 0,
+        total:     req.body.total
+      });
+
+      if (sri.ok) {
+        // Guardar clave de acceso en el documento de venta
+        await ventaRef.update({
+          claveAccesoSRI:     sri.claveAcceso   || null,
+          autorizacionSRI:    sri.autorizacion  || null,
+          facturaElectronica: true
+        });
+        console.log(`🧾 Clave SRI guardada en venta ${ventaRef.id}`);
+      } else {
+        // No bloquear la venta si Invoka falla — solo loguear
+        console.warn(`⚠️ Invoka no autorizó la factura para venta ${ventaRef.id}:`, sri.error);
+        await ventaRef.update({ facturaElectronica: false, errorSRI: sri.error || "Sin detalle" });
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────
 
     res.json({ ok: true });
   } catch (err) {
@@ -736,12 +903,6 @@ app.post('/deudas', async (req, res) => {
   }
 });
 
-// =========================================================================
-// ✅ CORRECCIÓN PRINCIPAL: /deudas/pagar
-// Se unificó la lectura del método de pago: ahora acepta tipoPago O metodoPago
-// para compatibilidad con el frontend (que envía tipoPago).
-// El bloque que actualiza la caja usa este valor correctamente.
-// =========================================================================
 app.post('/deudas/pagar', async (req, res) => {
   try {
     const docRef = db.collection('deudas').doc(req.body.id);
@@ -755,7 +916,6 @@ app.post('/deudas/pagar', async (req, res) => {
     const restante = deuda.total - deuda.pagado;
     if (monto > restante) return res.json({ error: "Sobrepago no permitido para el saldo restante" });
 
-    // ✅ Lee tipoPago (frontend) o metodoPago como fallback
     const metodoPago  = req.body.tipoPago    || req.body.metodoPago || "efectivo";
     const banco       = req.body.banco       || "";
     const comprobante = req.body.comprobante || "";
@@ -764,7 +924,6 @@ app.post('/deudas/pagar', async (req, res) => {
     deuda.pagado += monto;
     if (!deuda.pagos) deuda.pagos = [];
 
-    // Guardar el pago con todos sus datos (incluyendo tipoPago para mostrarlo en el historial)
     deuda.pagos.push({
       monto,
       tipoPago: metodoPago,
@@ -776,7 +935,6 @@ app.post('/deudas/pagar', async (req, res) => {
 
     await docRef.update(deuda);
 
-    // ✅ Registrar en caja UNA SOLA VEZ aquí en el backend
     const cajasSnapshot = await db.collection('cajas').where('activa', '==', true).get();
     if (!cajasSnapshot.empty) {
       const cajaRef = cajasSnapshot.docs[0].ref;
@@ -1298,7 +1456,7 @@ app.get('/inventario/caducidades', async (req, res) => {
 });
 
 // =========================================================================
-// 4. INICIALIZACIÓN
+// 6. INICIALIZACIÓN
 // =========================================================================
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
