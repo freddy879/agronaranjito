@@ -172,6 +172,17 @@ app.get('/sri/estado', async (req, res) => {
   }
 });
 
+
+// ── Obtener siguiente secuencial de factura (contador en Firestore) ──────
+async function obtenerSiguienteSecuencial() {
+  const ref = db.collection('config').doc('secuencialFactura');
+  const doc = await ref.get();
+  let actual = doc.exists ? (doc.data().valor || 0) : 0;
+  actual += 1;
+  await ref.set({ valor: actual });
+  return String(actual).padStart(9, '0');
+}
+
 // ── Función interna: emitir factura electrónica al SRI via Invoka ─────────
 // ── Función interna: emitir factura electrónica al SRI via Invoka ─────────
 async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento, total }) {
@@ -187,6 +198,7 @@ async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento
   // Formato de fecha YYYY/MM/DD requerido por Invoka
   const hoy = new Date();
   const fechaEmision = `${hoy.getFullYear()}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${String(hoy.getDate()).padStart(2, '0')}`;
+  const secuencial = await obtenerSiguienteSecuencial();
 
   const items = (carrito || []).map((p, i) => {
     const cantidad = Number(p.amount || p.cantidad || 1);
@@ -215,7 +227,8 @@ async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento
       direccion_matriz:             process.env.INVOKA_DIRECCION || "ECUADOR",
       direccion_establecimiento:    process.env.INVOKA_DIRECCION || "ECUADOR",
       obligado_contabilidad:        process.env.INVOKA_OBLIGADO_CONTABILIDAD || "NO",
-      fecha_emision:                fechaEmision
+      fecha_emision:                fechaEmision,
+      secuencial:                   secuencial
     },
     comprador: {
       identificacion,
