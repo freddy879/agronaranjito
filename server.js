@@ -195,6 +195,7 @@ async function obtenerSiguienteSecuencial() {
   return String(actual).padStart(9, '0');
 }
 
+
 // ── Función interna: emitir factura electrónica al SRI via Invoka ─────────
 async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento = 0, total }) {
   if (!process.env.INVOKA_API_KEY) {
@@ -206,20 +207,17 @@ async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento
   const tipoIdentificacion = esConsumidorFinal ? "07" : (String(cedula).length === 13 ? "04" : "05");
   const identificacion     = esConsumidorFinal ? "9999999999999" : String(cedula);
 
-  // Formato de fecha YYYY/MM/DD requerido por Invoka
   const hoy = new Date();
   const fechaEmision = `${hoy.getFullYear()}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${String(hoy.getDate()).padStart(2, '0')}`;
   const secuencial = await obtenerSiguienteSecuencial();
 
-  // 1. Calcular dinámicamente los ítems y acumular el subtotal
   let subtotal15Acumulado = 0;
 
   const items = (carrito || []).map((p, i) => {
     const cantidad = Number(p.amount || p.cantidad || 1);
     const precio   = Number(p.precio || 0);
     const subtotalItem = precio * cantidad;
-    
-    // Acumulamos el subtotal de este ítem (asumiendo que todos son IVA 15%)
+
     subtotal15Acumulado += subtotalItem;
 
     return {
@@ -234,16 +232,12 @@ async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento
     };
   });
 
-  // 2. Realizar los cálculos matemáticos del impuesto (Redondeo a 2 decimales)
   const subtotalConIva15 = Number(subtotal15Acumulado.toFixed(2));
   const totalDescuento   = Number(Number(descuento).toFixed(2));
-  
-  // Base imponible final tras restar descuentos del subtotal
-  const baseImponible = Math.max(0, subtotalConIva15 - totalDescuento);
-  const valorIva      = Number((baseImponible * 0.15).toFixed(2));
-  const totalAPagar   = Number((baseImponible + valorIva).toFixed(2));
+  const baseImponible    = Math.max(0, subtotalConIva15 - totalDescuento);
+  const valorIva         = Number((baseImponible * 0.15).toFixed(2));
+  const totalAPagar      = Number((baseImponible + valorIva).toFixed(2));
 
-  // 3. Construir el payload completo para Invoka
   const facturaData = {
     ambiente: Number(process.env.INVOKA_AMBIENTE || 1),
     emisor: {
@@ -266,20 +260,13 @@ async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento
       ...(correo ? { correo } : {})
     },
     items,
-
-    // 🔽 CAMPOS AGREGADOS: Bloque de Totales exigido por la API de Invoka 🔽
-    subtotal_no_objeto: 0.00,
-    subtotal_exento:    0.00,
-    subtotal_iva_0:     0.00,
-    subtotal_iva_15:    subtotalConIva15, 
-    total_descuento:    totalDescuento,
-    valor_iva:          valorIva,
-    total_pagar:        totalAPagar,
-
-    // Bloque de formas de pago exigido por el SRI
+    subtotal: subtotalConIva15,
+    discount: totalDescuento,
+    iva: valorIva,
+    total: totalAPagar,
     formas_pago: [
       {
-        forma_pago: "20", // 20 = Otros con utilización del sistema financiero
+        forma_pago: "20",
         total: totalAPagar
       }
     ]
@@ -927,7 +914,6 @@ app.post('/ventas', async (req, res) => {
     }
 
     // ── Emitir factura electrónica al SRI via Invoka ──────────────────────
-    // Solo para ventas de contado (efectivo o transferencia), no crédito
     if (req.body.tipo === "efectivo" || req.body.tipo === "transferencia") {
       const sri = await emitirFacturaInvoka({
         cliente:   req.body.cliente   || "CONSUMIDOR FINAL",
@@ -939,7 +925,6 @@ app.post('/ventas', async (req, res) => {
       });
 
       if (sri.ok) {
-        // Guardar clave de acceso en el documento de venta
         await ventaRef.update({
           claveAccesoSRI:     sri.claveAcceso   || null,
           autorizacionSRI:    sri.autorizacion  || null,
@@ -947,12 +932,10 @@ app.post('/ventas', async (req, res) => {
         });
         console.log(`🧾 Clave SRI guardada en venta ${ventaRef.id}`);
       } else {
-        // No bloquear la venta si Invoka falla — solo loguear
         console.warn(`⚠️ Invoka no autorizó la factura para venta ${ventaRef.id}:`, sri.error);
         await ventaRef.update({ facturaElectronica: false, errorSRI: sri.error || "Sin detalle" });
       }
     }
-    // ─────────────────────────────────────────────────────────────────────
 
     res.json({ ok: true });
   } catch (err) {
