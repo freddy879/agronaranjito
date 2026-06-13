@@ -196,7 +196,7 @@ async function obtenerSiguienteSecuencial() {
 }
 
 // ── Función interna: emitir factura electrónica al SRI via Invoka ─────────
-async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento, total }) {
+async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento = 0, total }) {
   if (!process.env.INVOKA_API_KEY) {
     console.warn("⚠️ INVOKA_API_KEY no configurada. Factura electrónica omitida.");
     return { ok: false, error: "API Key de Invoka no configurada" };
@@ -211,22 +211,39 @@ async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento
   const fechaEmision = `${hoy.getFullYear()}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${String(hoy.getDate()).padStart(2, '0')}`;
   const secuencial = await obtenerSiguienteSecuencial();
 
+  // 1. Calcular dinámicamente los ítems y acumular el subtotal
+  let subtotal15Acumulado = 0;
+
   const items = (carrito || []).map((p, i) => {
     const cantidad = Number(p.amount || p.cantidad || 1);
     const precio   = Number(p.precio || 0);
-    const subtotal = precio * cantidad;
+    const subtotalItem = precio * cantidad;
+    
+    // Acumulamos el subtotal de este ítem (asumiendo que todos son IVA 15%)
+    subtotal15Acumulado += subtotalItem;
+
     return {
       codigo_principal:          p.codigo || `PROD-${i + 1}`,
       descripcion:               p.nombre || "Producto",
       cantidad,
       precio_unitario:           precio,
       descuento:                 0,
-      precio_total_sin_impuesto: subtotal,
+      precio_total_sin_impuesto: Number(subtotalItem.toFixed(2)),
       tipoproducto:              1,
       tipo_iva:                  4 // 4 = IVA 15%
     };
   });
 
+  // 2. Realizar los cálculos matemáticos del impuesto (Redondeo a 2 decimales)
+  const subtotalConIva15 = Number(subtotal15Acumulado.toFixed(2));
+  const totalDescuento   = Number(Number(descuento).toFixed(2));
+  
+  // Base imponible final tras restar descuentos del subtotal
+  const baseImponible = Math.max(0, subtotalConIva15 - totalDescuento);
+  const valorIva      = Number((baseImponible * 0.15).toFixed(2));
+  const totalAPagar   = Number((baseImponible + valorIva).toFixed(2));
+
+  // 3. Construir el payload completo para Invoka
   const facturaData = {
     ambiente: Number(process.env.INVOKA_AMBIENTE || 1),
     emisor: {
@@ -248,11 +265,28 @@ async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento
       direccion:           "ECUADOR",
       ...(correo ? { correo } : {})
     },
-    items
+    items,
+
+    // 🔽 CAMPOS AGREGADOS: Bloque de Totales exigido por la API de Invoka 🔽
+    subtotal_no_objeto: 0.00,
+    subtotal_exento:    0.00,
+    subtotal_iva_0:     0.00,
+    subtotal_iva_15:    subtotalConIva15, 
+    total_descuento:    totalDescuento,
+    valor_iva:          valorIva,
+    total_pagar:        totalAPagar,
+
+    // Bloque de formas de pago exigido por el SRI
+    formas_pago: [
+      {
+        forma_pago: "20", // 20 = Otros con utilización del sistema financiero
+        total: totalAPagar
+      }
+    ]
   };
 
   try {
-      console.log("📤 Enviando a Invoka:", JSON.stringify(facturaData, null, 2));
+    console.log("📤 Enviando a Invoka:", JSON.stringify(facturaData, null, 2));
     const resp = await fetch("https://www.invoka.com.ec/api/factura/emision", {
       method:  "POST",
       headers: {
