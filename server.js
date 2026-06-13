@@ -228,6 +228,7 @@ async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento
   };
 
   try {
+      console.log("📤 Enviando a Invoka:", JSON.stringify(facturaData, null, 2));
     const resp = await fetch("https://www.invoka.com.ec/api/factura/emision", {
       method:  "POST",
       headers: {
