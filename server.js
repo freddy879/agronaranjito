@@ -114,7 +114,7 @@ app.post('/sri/firma', async (req, res) => {
   }
 
   try {
-    const response = await fetch("https://www.invoka.com.ec/api/empresa/firma", {
+    const response = await fetch("https://www.invoka.com.ec/api/empresa/subirfirma", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -128,8 +128,8 @@ app.post('/sri/firma', async (req, res) => {
     });
 
     const rawText = await response.text();
-    console.log("📋 Invoka /empresa/firma status:", response.status);
-    console.log("📋 Invoka /empresa/firma response:", rawText.slice(0, 300));
+    console.log("📋 Invoka /empresa/subirfirma status:", response.status);
+    console.log("📋 Invoka /empresa/subirfirma response:", rawText.slice(0, 300));
 
     let data;
     try {
