@@ -173,6 +173,7 @@ app.get('/sri/estado', async (req, res) => {
 });
 
 // ── Función interna: emitir factura electrónica al SRI via Invoka ─────────
+// ── Función interna: emitir factura electrónica al SRI via Invoka ─────────
 async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento, total }) {
   if (!process.env.INVOKA_API_KEY) {
     console.warn("⚠️ INVOKA_API_KEY no configurada. Factura electrónica omitida.");
@@ -183,69 +184,62 @@ async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento
   const tipoIdentificacion = esConsumidorFinal ? "07" : (String(cedula).length === 13 ? "04" : "05");
   const identificacion     = esConsumidorFinal ? "9999999999999" : String(cedula);
 
-  const detalles = (carrito || []).map((p, i) => {
-    const cantidad  = Number(p.amount || p.cantidad || 1);
-    const precio    = Number(p.precio || 0);
-    const subtotal  = precio * cantidad;
-    const ivaValor  = subtotal * 0.15;
+  // Formato de fecha YYYY/MM/DD requerido por Invoka
+  const hoy = new Date();
+  const fechaEmision = `${hoy.getFullYear()}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${String(hoy.getDate()).padStart(2, '0')}`;
+
+  const items = (carrito || []).map((p, i) => {
+    const cantidad = Number(p.amount || p.cantidad || 1);
+    const precio   = Number(p.precio || 0);
+    const subtotal = precio * cantidad;
     return {
-      codigoPrincipal:         p.codigo || `PROD-${i + 1}`,
-      descripcion:             p.nombre || "Producto",
+      codigo_principal:          p.codigo || `PROD-${i + 1}`,
+      descripcion:               p.nombre || "Producto",
       cantidad,
-      precioUnitario:          precio,
-      descuento:               0,
-      precioTotalSinImpuesto:  subtotal,
-      impuestos: [{
-        codigo:           "2",
-        codigoPorcentaje: "4",
-        tarifa:           15,
-        baseImponible:    subtotal,
-        valor:            ivaValor
-      }]
+      precio_unitario:           precio,
+      descuento:                 0,
+      precio_total_sin_impuesto: subtotal,
+      tipoproducto:              1,
+      tipo_iva:                  4 // 4 = IVA 15%
     };
   });
 
-  const subtotalSinIva = detalles.reduce((s, d) => s + d.precioTotalSinImpuesto, 0);
-  const totalIva       = subtotalSinIva * 0.15;
-  const importeTotal   = subtotalSinIva + totalIva;
-
-  const cuerpo = {
-    ambiente:    Number(process.env.INVOKA_AMBIENTE || 1),
-    razonSocial: process.env.INVOKA_RAZON_SOCIAL || "AGRO NARANJITO #1",
-    ruc:         process.env.INVOKA_RUC,
-    receptor: {
-      razonSocial:       cliente || "CONSUMIDOR FINAL",
-      identificacion,
-      tipoIdentificacion,
-      ...(correo ? { email: correo } : {})
+  const facturaData = {
+    ambiente: Number(process.env.INVOKA_AMBIENTE || 1),
+    emisor: {
+      nombre_comercial:           process.env.INVOKA_NOMBRE_COMERCIAL || process.env.INVOKA_RAZON_SOCIAL || "AGRO NARANJITO #1",
+      razon_social:                process.env.INVOKA_RAZON_SOCIAL || "AGRO NARANJITO #1",
+      ruc:                          process.env.INVOKA_RUC,
+      codigo_establecimiento:       process.env.INVOKA_COD_ESTABLECIMIENTO || "001",
+      codigo_puntoemision:          process.env.INVOKA_COD_PUNTOEMISION   || "001",
+      direccion_matriz:             process.env.INVOKA_DIRECCION || "ECUADOR",
+      direccion_establecimiento:    process.env.INVOKA_DIRECCION || "ECUADOR",
+      obligado_contabilidad:        process.env.INVOKA_OBLIGADO_CONTABILIDAD || "NO",
+      fecha_emision:                fechaEmision
     },
-    detalles,
-    infoFactura: {
-      totalSinImpuestos: subtotalSinIva,
-      totalDescuento:    Number(descuento || 0),
-      totalConImpuestos: [{
-        codigo:           "2",
-        codigoPorcentaje: "4",
-        baseImponible:    subtotalSinIva,
-        valor:            totalIva
-      }],
-      importeTotal
-    }
+    comprador: {
+      identificacion,
+      tipo_identificacion: tipoIdentificacion,
+      razon_social:        cliente || "CONSUMIDOR FINAL",
+      direccion:           "ECUADOR",
+      ...(correo ? { correo } : {})
+    },
+    items
   };
 
   try {
-    const resp = await fetch("https://www.invoka.com.ec/api/factura/emitir", {
+    const resp = await fetch("https://www.invoka.com.ec/api/factura/emision", {
       method:  "POST",
       headers: {
         "Content-Type":  "application/json",
         "X-API-KEY":     process.env.INVOKA_API_KEY
       },
-      body: JSON.stringify(cuerpo)
+      body: JSON.stringify(facturaData)
     });
 
     const rawText = await resp.text();
-    console.log("📋 Invoka status:", resp.status);
-    console.log("📋 Invoka raw response:", rawText.slice(0, 500));
+    console.log("📋 Invoka /factura/emision status:", resp.status);
+    console.log("📋 Invoka /factura/emision response:", rawText.slice(0, 500));
 
     let data;
     try {
@@ -255,12 +249,12 @@ async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento
       return { ok: false, error: `Invoka devolvió HTML (status ${resp.status}), no JSON` };
     }
 
-    if (data.claveAcceso || data.numeroAutorizacion || data.success) {
-      console.log(`✅ Factura SRI emitida — Clave: ${data.claveAcceso || "pendiente"}`);
-      return { ok: true, claveAcceso: data.claveAcceso, autorizacion: data.numeroAutorizacion, data };
+    if (data.creado) {
+      console.log(`✅ Factura SRI registrada — Clave: ${data.claveacceso}`);
+      return { ok: true, claveAcceso: data.claveacceso, autorizacion: data.id_comprobante, data };
     } else {
-      console.warn("⚠️ Invoka respondió sin autorización:", JSON.stringify(data));
-      return { ok: false, error: data.mensaje || data.error || "Respuesta inesperada de Invoka", data };
+      console.warn("⚠️ Invoka respondió sin crear factura:", JSON.stringify(data));
+      return { ok: false, error: data.mensaje || JSON.stringify(data.errors) || "Respuesta inesperada de Invoka", data };
     }
   } catch (err) {
     console.error("❌ Error al conectar con Invoka:", err.message);
