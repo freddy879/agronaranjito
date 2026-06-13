@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
 const admin   = require('firebase-admin');
-const nodemailer = require('nodemailer');
 
 const app = express();
 
@@ -31,31 +30,45 @@ try {
 const db = admin.firestore();
 
 // =========================================================================
-// 2. CONFIGURACIÓN DE NODEMAILER CON BREVO SMTP
+// 2. CONFIGURACIÓN DE BREVO (API HTTP - evita bloqueo SMTP de Render)
 // =========================================================================
-let transporter = null;
-if (process.env.BREVO_SMTP_KEY) {
-  transporter = nodemailer.createTransport({
-    host: 'smtp-relay.brevo.com',
-    port: 465,
-    secure: true,
-    auth: {
-      user: 'ad85ef001@smtp-brevo.com',
-      pass: process.env.BREVO_SMTP_KEY
-    },
-    tls: { rejectUnauthorized: false }
-  });
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'ad85ef001@smtp-brevo.com';
 
-  transporter.verify((err) => {
-    if (err) {
-      console.warn("⚠️ Brevo SMTP error de verificación:", err.message);
-    } else {
-      console.log("📧 Relay Brevo SMTP listo para despachar facturas a clientes.");
-      iniciarGuardianCaducidades();
-    }
-  });
+if (BREVO_API_KEY) {
+  console.log("📧 Brevo API (HTTP) configurada. Listo para enviar correos.");
+  iniciarGuardianCaducidades();
 } else {
-  console.warn("⚠️ BREVO_SMTP_KEY no configurado en Render. Envío de correos inhabilitado.");
+  console.warn("⚠️ BREVO_API_KEY no configurado en Render. Envío de correos inhabilitado.");
+}
+
+async function enviarCorreoBrevo({ to, subject, html, fromName, fromEmail }) {
+  if (!BREVO_API_KEY) return { ok: false, error: "BREVO_API_KEY no configurado" };
+
+  try {
+    const resp = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "accept": "application/json",
+        "api-key": BREVO_API_KEY,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        sender: { name: fromName || "Agro Naranjito #1", email: fromEmail || BREVO_SENDER_EMAIL },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html
+      })
+    });
+
+    const data = await resp.json();
+    if (resp.ok) return { ok: true, data };
+    console.error("❌ Brevo API rechazó el envío:", JSON.stringify(data));
+    return { ok: false, error: data.message || "Error en Brevo API", data };
+  } catch (err) {
+    console.error("❌ Error al conectar con Brevo API:", err.message);
+    return { ok: false, error: err.message };
+  }
 }
 
 // =========================================================================
@@ -99,7 +112,6 @@ app.post('/sri/configurar', async (req, res) => {
 // =========================================================================
 // INVOKA — SUBIR FIRMA ELECTRÓNICA .p12
 // =========================================================================
-// Pega este bloque DESPUÉS de /sri/configurar y ANTES de emitirFacturaInvoka
 
 // ── Subir firma electrónica (Base64 JSON) ──────────────────────────────
 app.post('/sri/firma', async (req, res) => {
@@ -183,7 +195,6 @@ async function obtenerSiguienteSecuencial() {
   return String(actual).padStart(9, '0');
 }
 
-// ── Función interna: emitir factura electrónica al SRI via Invoka ─────────
 // ── Función interna: emitir factura electrónica al SRI via Invoka ─────────
 async function emitirFacturaInvoka({ cliente, cedula, correo, carrito, descuento, total }) {
   if (!process.env.INVOKA_API_KEY) {
@@ -416,7 +427,7 @@ const mapearDocs = (snapshot) => {
 // 4. MOTOR DE ALERTAS ACTIVAS - GUARDIÁN DE CADUCIDADES
 // =========================================================================
 async function ejecutarRevisionCaducidades() {
-  if (!transporter) return console.log("⚠️ Guardián abortado: Brevo SMTP no configurado.");
+  if (!BREVO_API_KEY) return console.log("⚠️ Guardián abortado: Brevo API no configurada.");
   console.log("🕒 Guardián de Inventario: Iniciando escaneo diario de caducidades...");
 
   try {
@@ -496,11 +507,11 @@ async function ejecutarRevisionCaducidades() {
     </body>
     </html>`;
 
-    await transporter.sendMail({
-      from:    '"NEXUS Guardián" <ad85ef001@smtp-brevo.com>',
-      to:      'ad85ef001@smtp-brevo.com',
-      subject: `🚨 ALERTA BODEGA: ${listaVencidos.length} Vencidos / ${listaCriticos.length} Críticos detectados`,
-      html:    cuerpoHtml
+    await enviarCorreoBrevo({
+      to:       'ad85ef001@smtp-brevo.com',
+      subject:  `🚨 ALERTA BODEGA: ${listaVencidos.length} Vencidos / ${listaCriticos.length} Críticos detectados`,
+      html:     cuerpoHtml,
+      fromName: 'NEXUS Guardián'
     });
 
     console.log("📧 Correo consolidado de alertas enviado exitosamente al administrador.");
@@ -784,25 +795,29 @@ app.post('/correo/factura', async (req, res) => {
   if (!correo) {
     return res.status(400).json({ error: "La dirección de correo destinataria es obligatoria." });
   }
-  if (!transporter) {
-    return res.status(503).json({ error: "El servicio SMTP de Brevo no está configurado o inicializado." });
+  if (!BREVO_API_KEY) {
+    return res.status(503).json({ error: "El servicio de correo (Brevo API) no está configurado." });
   }
 
   try {
     const htmlFactura = generarHTMLCorreo(datos, carrito, tipoPago);
     const subject     = `🧾 Comprobante Digital — ${datos?.cliente || "Cliente"} · Total: $${Number(datos?.totalFinal || 0).toFixed(2)}`;
 
-    await transporter.sendMail({
-      from:    '"Agro Naranjito #1" <ad85ef001@smtp-brevo.com>',
-      to:      correo,
+    const resultado = await enviarCorreoBrevo({
+      to: correo,
       subject,
-      html:    htmlFactura
+      html: htmlFactura,
+      fromName: 'Agro Naranjito #1'
     });
+
+    if (!resultado.ok) {
+      throw new Error(resultado.error);
+    }
 
     console.log(`📧 Factura despachada con éxito a: ${correo}`);
     res.json({ ok: true, mensaje: `Correo enviado satisfactoriamente a ${correo}` });
   } catch (err) {
-    console.error("❌ Error crítico en Brevo SMTP:", err.message);
+    console.error("❌ Error crítico en Brevo API:", err.message);
     res.status(500).json({ error: "Fallo crítico al despachar correo electrónico.", detalle: err.message });
   }
 });
